@@ -45,10 +45,26 @@ export default function OverlayEditor() {
   };
 
   // Save overlay
-  const saveOverlay = () => {
+  const saveOverlay = async () => {
     if (overlayImage) {
+      // Save overlay to local storage (or you can send it to your API)
       localStorage.setItem('photoBoothOverlay', overlayImage);
-      alert('Overlay saved!');
+      
+      // Example of sending to your API
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ eventName: 'Your Event Name', frameUrl: overlayImage }), // Adjust as needed
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        alert('Overlay saved to event!');
+      } else {
+        alert('Error saving overlay: ' + result.message);
+      }
     }
   };
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import OverlayDesign from '../admin/design/components/OverlayDesign';
 
 export default function CameraPage() {
   const router = useRouter();
@@ -116,14 +117,8 @@ export default function CameraPage() {
   };
 
   return (
-    <div style={{ 
-      minHeight: '100vh',
-      backgroundColor: '#000',
-      padding: '20px',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center'
-    }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#000', padding: '20px' }}>
+      <OverlayDesign />
       <div style={{
         width: '100%',
         maxWidth: '600px',

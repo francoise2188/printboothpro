@@ -1,8 +1,8 @@
 'use client';
 
-import OverlayEditor from './overlay-editor';
+import EventsPage from './EventsPage';
 
-export default function OverlayEditorPage() {
-  return <OverlayEditor />;
+export default function Page() {
+  return <EventsPage />;
 }
 
