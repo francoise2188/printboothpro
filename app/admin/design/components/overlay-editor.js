@@ -1,169 +1,160 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../../../lib/supabase';
 
 export default function OverlayEditor() {
-  const [overlayImage, setOverlayImage] = useState(null);
-  const fileInputRef = useRef(null);
-  const videoRef = useRef(null);
+  const [preview, setPreview] = useState(null);
+  const [message, setMessage] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [currentOverlay, setCurrentOverlay] = useState(null);
 
+  // Fetch current overlay on load
   useEffect(() => {
-    async function setupCamera() {
+    async function fetchCurrentOverlay() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user' },
-          audio: false
-        });
+        const { data, error } = await supabase
+          .from('design_settings')
+          .select('url')
+          .eq('type', 'frame_overlay')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) throw error;
         
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        if (data && data.length > 0) {
+          setCurrentOverlay(data[0].url);
+          setPreview(data[0].url);
         }
-      } catch (err) {
-        console.error("Error accessing camera:", err);
+      } catch (error) {
+        console.error('Error fetching overlay:', error);
       }
     }
 
-    setupCamera();
-
-    return () => {
-      if (videoRef.current?.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
-      }
-    };
+    fetchCurrentOverlay();
   }, []);
 
-  const handleUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+  const handleUpload = async (e) => {
+    try {
+      setUploading(true);
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Create a new image element
+      const img = new Image();
+      img.onload = () => {
+        // Create canvas for resizing
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 400;
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw resized image
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Set preview with resized image
+        setPreview(canvas.toDataURL('image/png'));
+      };
+      
+      // Load image from file
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setOverlayImage(e.target.result);
+      reader.onloadend = () => {
+        img.src = reader.result;
       };
       reader.readAsDataURL(file);
-    }
-  };
 
-  // Save overlay
-  const saveOverlay = async () => {
-    if (overlayImage) {
-      // Save overlay to local storage (or you can send it to your API)
-      localStorage.setItem('photoBoothOverlay', overlayImage);
+      // Upload to storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `overlay_${Date.now()}.${fileExt}`;
       
-      // Example of sending to your API
-      const response = await fetch('/api/events', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ eventName: 'Your Event Name', frameUrl: overlayImage }), // Adjust as needed
-      });
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('designs')
+        .upload(fileName, file);
 
-      const result = await response.json();
-      if (result.success) {
-        alert('Overlay saved to event!');
-      } else {
-        alert('Error saving overlay: ' + result.message);
-      }
-    }
-  };
+      if (uploadError) throw uploadError;
 
-  // Load saved overlay
-  const loadSavedOverlay = () => {
-    const saved = localStorage.getItem('photoBoothOverlay');
-    if (saved) {
-      setOverlayImage(saved);
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('designs')
+        .getPublicUrl(fileName);
+
+      // Insert into design_settings
+      const { error: dbError } = await supabase
+        .from('design_settings')
+        .insert({
+          type: 'frame_overlay',
+          url: publicUrl,
+          created_at: new Date().toISOString()
+        });
+
+      if (dbError) throw dbError;
+
+      setCurrentOverlay(publicUrl);
+      setMessage('✅ Upload successful!');
+      
+    } catch (error) {
+      console.error('Error:', error);
+      setMessage('❌ Error: ' + error.message);
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-4">Overlay Editor</h1>
-        
-        {/* Controls */}
-        <div className="mb-4 flex gap-2 flex-wrap">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-          >
-            Upload Overlay
-          </button>
-          <button
-            onClick={saveOverlay}
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-          >
-            Save Changes
-          </button>
-          <button
-            onClick={loadSavedOverlay}
-            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-          >
-            Load Saved
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png"
-            onChange={handleUpload}
-            className="hidden"
-          />
-        </div>
-
-        {/* Camera Preview Container */}
-        <div className="bg-black rounded-lg overflow-hidden">
-          <div style={{
-            width: '100%',
-            maxWidth: '600px',
-            aspectRatio: '1/1',
-            position: 'relative',
-            margin: '0 auto'
-          }}>
-            {/* Camera Feed */}
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                position: 'absolute',
-                top: 0,
-                left: 0
-              }}
+    <div className="space-y-6">
+      {/* Current Overlay Display */}
+      {currentOverlay && (
+        <div className="mt-4 space-y-4">
+          <h3 className="font-semibold">Current Overlay:</h3>
+          <div className="relative">
+            <img 
+              src={currentOverlay} 
+              alt="Current overlay" 
+              style={{ maxHeight: '48px', maxWidth: '48px', objectFit: 'contain', margin: '0 auto', display: 'block' }}
             />
-
-            {/* Overlay Layer */}
-            {overlayImage && (
-              <img
-                src={overlayImage}
-                alt="Overlay"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  pointerEvents: 'none'
-                }}
-              />
-            )}
           </div>
         </div>
-
-        {/* Clear Overlay Button */}
-        {overlayImage && (
-          <button
-            onClick={() => setOverlayImage(null)}
-            className="mt-4 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-          >
-            Clear Overlay
-          </button>
-        )}
+      )}
+      
+      {/* Upload Section */}
+      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+        <label className="block text-center cursor-pointer">
+          <span className="text-gray-600">
+            {uploading ? 'Uploading...' : 'Click to upload new overlay'}
+          </span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleUpload}
+            disabled={uploading}
+            className="hidden"
+          />
+        </label>
       </div>
+
+      {/* Status Message */}
+      {message && (
+        <div className={`p-4 rounded ${message.includes('✅') ? 'bg-green-50' : 'bg-red-50'}`}>
+          {message}
+        </div>
+      )}
     </div>
   );
 }

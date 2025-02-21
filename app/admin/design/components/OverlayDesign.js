@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { supabase } from '../../../../lib/supabase';
 
 export default function OverlayDesign() {
   const [preview, setPreview] = useState(null);
@@ -20,9 +20,43 @@ export default function OverlayDesign() {
       
       setUploading(true);
       
+      // Create a new image element
+      const img = new Image();
+      img.onload = () => {
+        // Create canvas for resizing
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 400;
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw resized image
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Set preview with resized image
+        setPreview(canvas.toDataURL('image/png'));
+      };
+      
+      // Load image from file
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPreview(reader.result);
+        img.src = reader.result;
       };
       reader.readAsDataURL(file);
 
@@ -165,7 +199,7 @@ export default function OverlayDesign() {
               <img 
                 src={preview}
                 alt="Frame"
-                className="w-full h-full object-contain"
+                style={{ maxHeight: '150px', maxWidth: '150px', objectFit: 'contain' }}
                 draggable="false"
               />
             </div>
