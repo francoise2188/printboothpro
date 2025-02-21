@@ -1,15 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import styles from './page.module.css';
 
-export default function Home() {
+function HomeContent() {
   const [email, setEmail] = useState('');
   const [backgroundUrl, setBackgroundUrl] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
   const eventId = searchParams.get('event');
+  const error = searchParams.get('error');
 
   useEffect(() => {
     async function checkEventStatus() {
@@ -68,88 +71,57 @@ export default function Home() {
     }
   }, [eventId]);
 
-  return (
-    <div style={{ 
-      height: '100vh',
-      width: '100vw',
-      position: 'relative',
-      overflow: 'hidden',
-      backgroundColor: '#000',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center'
-    }}>
-      {/* Background Image Container */}
-      {backgroundUrl && (
-        <img
-          src={backgroundUrl}
-          alt="Background"
-          style={{
-            position: 'absolute',
-            height: '102vh',
-            width: 'auto',
-            maxWidth: 'none',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            margin: 0,
-            padding: 0,
-            objectFit: 'contain',
-            objectPosition: 'center'
-          }}
-        />
-      )}
+  const handleStart = () => {
+    if (email) {
+      localStorage.setItem('userEmail', email);
+      router.push(eventId ? `/camera?event=${eventId}` : '/camera');
+    }
+  };
 
-      {/* Email Form */}
-      <div style={{
-        position: 'fixed',
-        bottom: '20px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        backgroundColor: 'rgba(255, 255, 255, 0.8)',
-        padding: '15px',
-        borderRadius: '12px',
-        width: '80%',
-        maxWidth: '350px',
-        zIndex: 2
-      }}>
-        <form onSubmit={(e) => {
-          e.preventDefault();
-          if (email) {
-            localStorage.setItem('userEmail', email);
-            router.push(eventId ? `/camera?event=${eventId}` : '/camera');
-          }
-        }}>
-          <input
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{
-              width: '100%',
-              padding: '8px',
-              marginBottom: '8px',
-              border: '1px solid #ccc',
-              borderRadius: '5px'
-            }}
-          />
+  return (
+    <div className={styles.container}>
+      <div className={styles.content}>
+        <h1 className={styles.title}>
+          PrintBooth Pro
+        </h1>
+        <p className={styles.description}>
+          Your All-in-One Photo Magnet Solution for Events & Markets
+        </p>
+
+        {error && (
+          <div className={styles.error}>
+            {error}
+          </div>
+        )}
+
+        <div className={styles.buttonContainer}>
           <button
-            type="submit"
-            style={{
-              width: '100%',
-              padding: '8px',
-              backgroundColor: '#007bff',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer'
-            }}
+            onClick={handleStart}
+            disabled={!email}
+            className={styles.startButton}
           >
-            Start Photobooth
+            {email ? 'Start Photo Booth' : 'Enter Email'}
           </button>
-        </form>
+          
+          <Link href="/subscription" className={styles.subscribeButton}>
+            Subscribe Now
+          </Link>
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold">Loading...</h2>
+        </div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }
