@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import styles from './create-password.module.css';
 
 const supabase = createClientComponentClient();
 
-export default function CreatePassword() {
+function CreatePasswordContent() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,6 +25,7 @@ export default function CreatePassword() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
+  const token = searchParams.get('token');
 
   useEffect(() => {
     if (!sessionId) {
@@ -305,5 +306,19 @@ export default function CreatePassword() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CreatePasswordPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900">Loading...</h2>
+        </div>
+      </div>
+    }>
+      <CreatePasswordContent />
+    </Suspense>
   );
 } 
