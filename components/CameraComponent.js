@@ -170,8 +170,157 @@ export default function CameraComponent() {
   const searchParams = useSearchParams();
   const eventId = searchParams.get('event');
 
-  // Rest of your component code...
-  // (All the useEffect hooks and functions remain the same)
+  const startCamera = async () => {
+    try {
+      if (videoRef.current?.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      });
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      alert('Failed to start camera. Please make sure you have given camera permissions.');
+    }
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current) {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = 600;
+      canvas.height = 600;
+      
+      const ctx = canvas.getContext('2d');
+      const size = Math.min(video.videoWidth, video.videoHeight);
+      const startX = (video.videoWidth - size) / 2;
+      const startY = (video.videoHeight - size) / 2;
+      
+      ctx.drawImage(
+        video,
+        startX, startY, size, size,
+        0, 0, canvas.width, canvas.height
+      );
+
+      setPhoto(canvas.toDataURL('image/jpeg', 0.95));
+    }
+  };
+
+  const startCountdown = () => {
+    let count = 3;
+    setCountdownNumber(count);
+
+    const timer = setInterval(() => {
+      count--;
+      if (count > 0) {
+        setCountdownNumber(count);
+      } else {
+        clearInterval(timer);
+        setCountdownNumber(null);
+        takePhoto();
+      }
+    }, 1000);
+  };
+
+  const handleRetake = async () => {
+    setPhoto(null);
+    await startCamera();
+  };
+
+  useEffect(() => {
+    startCamera();
+    return () => {
+      if (videoRef.current?.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const savePhoto = async () => {
+    if (!photo) {
+      console.log('⚠️ No photo taken yet');
+      alert('Please take a photo first');
+      return;
+    }
+
+    try {
+      console.log('🚀 Starting save process');
+
+      // Convert base64 to blob
+      const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
+      const photoBlob = Buffer.from(base64Data, 'base64');
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const filename = `booth_photos/${timestamp}.jpg`;
+      
+      // Generate order code
+      const orderCode = `BTH-${timestamp.toString().slice(-6)}`;
+      console.log('📝 Generated order code:', orderCode);
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('booth_photos')
+        .upload(filename, photoBlob, {
+          contentType: 'image/jpeg'
+        });
+
+      if (uploadError) {
+        console.error('❌ Upload error:', uploadError);
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase
+        .storage
+        .from('booth_photos')
+        .getPublicUrl(filename);
+
+      // Prepare database record
+      const photoData = {
+        photo_url: filename,
+        status: 'pending',
+        source: 'booth',
+        created_at: new Date().toISOString(),
+        order_code: orderCode,
+      };
+
+      console.log('📝 Preparing to save photo data:', photoData);
+
+      // Save record to database
+      const { data: photoRecord, error: dbError } = await supabase
+        .from('booth_photos')
+        .insert([photoData])
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('❌ Database error:', dbError);
+        throw dbError;
+      }
+
+      console.log('✅ Photo saved successfully:', photoRecord);
+
+      // Redirect to checkout with photoId
+      router.push(`/checkout?photoId=${photoRecord.id}`);
+
+    } catch (error) {
+      console.error('❌ Error saving photo:', error);
+      alert('Failed to save photo. Please try again.');
+    }
+  };
 
   return (
     <div style={{ 
@@ -270,30 +419,7 @@ export default function CameraComponent() {
             </button>
 
             <button 
-              onClick={(e) => {
-                e.preventDefault();
-                saveToDevice(photo);
-              }}
-              style={{
-                width: '100%',
-                padding: '16px',
-                backgroundColor: '#6366F1',
-                color: 'white',
-                borderRadius: '8px',
-                border: 'none',
-                fontSize: '16px',
-                fontWeight: '500',
-                marginBottom: '10px'
-              }}
-            >
-              Save to Device
-            </button>
-
-            <button 
-              onClick={(e) => {
-                e.preventDefault();
-                savePhoto();
-              }}
+              onClick={savePhoto}
               style={{
                 width: '100%',
                 padding: '16px',
@@ -325,22 +451,6 @@ export default function CameraComponent() {
             Take Photo
           </button>
         )}
-        
-        <button 
-          onClick={() => setFacingMode(current => current === 'user' ? 'environment' : 'user')}
-          style={{
-            width: '100%',
-            padding: '16px',
-            backgroundColor: '#6B7280',
-            color: 'white',
-            borderRadius: '8px',
-            border: 'none',
-            fontSize: '16px',
-            fontWeight: '500'
-          }}
-        >
-          Switch Camera
-        </button>
         
         <button 
           onClick={() => router.push('/')}

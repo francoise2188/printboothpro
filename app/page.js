@@ -71,13 +71,95 @@ function HomeContent() {
     }
   }, [eventId]);
 
-  const handleStart = () => {
-    if (email) {
-      localStorage.setItem('userEmail', email);
-      router.push(eventId ? `/camera?event=${eventId}` : '/camera');
-    }
-  };
+  // If this is an event page, show the event-specific layout
+  if (eventId) {
+    return (
+      <div style={{ 
+        height: '100vh',
+        width: '100vw',
+        position: 'relative',
+        overflow: 'hidden',
+        backgroundColor: '#000',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center'
+      }}>
+        {/* Background Image Container */}
+        {backgroundUrl && (
+          <img
+            src={backgroundUrl}
+            alt="Background"
+            style={{
+              position: 'absolute',
+              height: '102vh',
+              width: 'auto',
+              maxWidth: 'none',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              margin: 0,
+              padding: 0,
+              objectFit: 'contain',
+              objectPosition: 'center'
+            }}
+          />
+        )}
 
+        {/* Email Form */}
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+          padding: '15px',
+          borderRadius: '12px',
+          width: '80%',
+          maxWidth: '350px',
+          zIndex: 2
+        }}>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (email) {
+              localStorage.setItem('userEmail', email);
+              router.push(`/camera?event=${eventId}`);
+            }
+          }}>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '8px',
+                marginBottom: '8px',
+                border: '1px solid #ccc',
+                borderRadius: '5px'
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                padding: '8px',
+                backgroundColor: '#007bff',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer'
+              }}
+            >
+              Start Photobooth
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // If no eventId, show the main homepage
   return (
     <div className={styles.container}>
       <div className={styles.content}>
@@ -96,11 +178,10 @@ function HomeContent() {
 
         <div className={styles.buttonContainer}>
           <button
-            onClick={handleStart}
-            disabled={!email}
+            onClick={() => router.push('/camera')}
             className={styles.startButton}
           >
-            {email ? 'Start Photo Booth' : 'Enter Email'}
+            Start Photo Booth
           </button>
           
           <Link href="/subscription" className={styles.subscribeButton}>

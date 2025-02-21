@@ -1,122 +1,87 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import styles from '../subscription.module.css';
+import styles from './success.module.css';
 
-export default function SubscriptionSuccessPage() {
-  const [status, setStatus] = useState('loading');
+function SuccessContent() {
+  const [message, setMessage] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
 
   useEffect(() => {
-    const verifySubscription = async () => {
-      if (!sessionId) {
-        setStatus('error');
-        return;
-      }
+    if (!sessionId) {
+      router.push('/subscription');
+      return;
+    }
 
+    // Verify the payment and create account
+    const verifyPayment = async () => {
       try {
-        // Verify the subscription with our backend
-        const response = await fetch('/api/verify-subscription', {
+        const response = await fetch('/api/verify-payment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ sessionId }),
+          body: JSON.stringify({
+            sessionId,
+          }),
         });
 
-        const { success, error } = await response.json();
+        const data = await response.json();
 
-        if (error) throw new Error(error);
-
-        setStatus('success');
-        // Redirect to profile after 3 seconds
-        setTimeout(() => {
-          router.push('/profile');
-        }, 3000);
+        if (response.ok) {
+          setMessage('Payment successful! Redirecting to create your account...');
+          // Redirect to create password page
+          router.push(`/create-password?session_id=${sessionId}`);
+        } else {
+          setMessage(data.error || 'Something went wrong. Please try again.');
+        }
       } catch (error) {
-        console.error('Error verifying subscription:', error);
-        setStatus('error');
+        console.error('Error:', error);
+        setMessage('An error occurred. Please try again.');
       }
     };
 
-    verifySubscription();
-  }, [sessionId]);
+    verifyPayment();
+  }, [sessionId, router]);
 
   return (
     <div className={styles.container}>
       <div className={styles.content}>
-        <div className={styles.pricingCard}>
-          <div className={styles.cardContent}>
-            {status === 'loading' && (
-              <div className={styles.planHeader}>
-                <h2 className={styles.planName}>
-                  Verifying your subscription...
-                </h2>
-                <p className={styles.subtitle}>
-                  Please wait while we confirm your payment
-                </p>
-              </div>
-            )}
-
-            {status === 'success' && (
-              <div className={styles.planHeader}>
-                <div className={styles.successIcon}>
-                  <svg
-                    className={styles.featureIcon}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    style={{ width: '3rem', height: '3rem', margin: '0 auto' }}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <h2 className={styles.planName}>
-                  Subscription Successful!
-                </h2>
-                <p className={styles.subtitle}>
-                  Thank you for subscribing. You'll be redirected to your profile in a moment...
-                </p>
-              </div>
-            )}
-
-            {status === 'error' && (
-              <div className={styles.planHeader}>
-                <div className={styles.errorIcon}>
-                  <svg
-                    className={styles.featureIcon}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    style={{ width: '3rem', height: '3rem', margin: '0 auto', color: '#dc2626' }}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </div>
-                <h2 className={styles.planName}>
-                  Something went wrong
-                </h2>
-                <p className={styles.subtitle}>
-                  There was an error verifying your subscription. Please contact support.
-                </p>
-              </div>
-            )}
-          </div>
+        <div className={styles.successIcon}>
+          <svg
+            className={styles.icon}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
         </div>
+        <h1 className={styles.title}>Processing Your Payment</h1>
+        <p className={styles.message}>{message || 'Please wait...'}</p>
       </div>
     </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold">Loading...</h2>
+        </div>
+      </div>
+    }>
+      <SuccessContent />
+    </Suspense>
   );
 } 
