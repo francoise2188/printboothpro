@@ -14,7 +14,7 @@ export default function EventQRCode({ eventId, eventName }) {
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
-      setEventUrl(`${window.location.origin}/?event=${eventId}`);
+      setEventUrl(`${window.location.origin}/event/${eventId}`);
     }
     
     // Fetch initial event status with user_id check

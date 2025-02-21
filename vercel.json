@@ -1,0 +1,24 @@
+{
+  "version": 2,
+  "public": true,
+  "builds": [
+    {
+      "src": "next.config.js",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/event/(.*)",
+      "dest": "/event/$1"
+    },
+    {
+      "src": "/camera",
+      "dest": "/camera"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+} 
