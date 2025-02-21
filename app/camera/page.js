@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
+import CameraComponent from '../../components/CameraComponent';
 
 // Add these sharing functions at the top of your file
 const shareToInstagram = async (photoUrl) => {
@@ -160,7 +161,7 @@ const getPublicUrl = async (photoData) => {
   }
 };
 
-export default function CameraPage() {
+function CameraContent() {
   const videoRef = useRef(null);
   const [overlayUrl, setOverlayUrl] = useState('');
   const [facingMode, setFacingMode] = useState('user');
@@ -644,5 +645,19 @@ export default function CameraPage() {
       {/* Add the countdown overlay */}
       <CountdownOverlay number={countdownNumber} />
     </div>
+  );
+}
+
+export default function CameraPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-white text-center">
+          <h2 className="text-xl font-semibold">Loading camera...</h2>
+        </div>
+      </div>
+    }>
+      <CameraContent />
+    </Suspense>
   );
 }
