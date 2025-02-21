@@ -1,10 +1,12 @@
 'use client';
 
+import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';  // Make sure this path is correct
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'react-hot-toast';
+import CountdownOverlay from './CountdownOverlay';
 
 export default function EventCameraComponent({ eventId }) {
   const videoRef = useRef(null);

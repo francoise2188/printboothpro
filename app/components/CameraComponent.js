@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from 'react-hot-toast';
+import CountdownOverlay from './CountdownOverlay';
 
 // Add these functions at the top with your other imports
 const shareToInstagram = async (photoUrl) => {
