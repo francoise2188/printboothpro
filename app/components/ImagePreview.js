@@ -34,8 +34,12 @@ export default function ImagePreview({ imageData, alt = 'Preview', width = 200, 
         return;
       }
 
-      // If it's a URL string
-      if (typeof imageData === 'string' && (imageData.startsWith('http') || imageData.startsWith('data:'))) {
+      // If it's a URL string (including blob URLs)
+      if (typeof imageData === 'string' && (
+        imageData.startsWith('http') || 
+        imageData.startsWith('data:') ||
+        imageData.startsWith('blob:')
+      )) {
         setImageUrl(imageData);
       }
       // If it's an object with a URL property

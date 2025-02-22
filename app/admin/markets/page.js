@@ -88,6 +88,7 @@ export default function MarketManager() {
 
   const fetchMarkets = async () => {
     try {
+      console.log('Fetching markets...');
       const { data, error } = await supabase
         .from('markets')
         .select('*')
@@ -95,6 +96,9 @@ export default function MarketManager() {
         .order('date', { ascending: true });
 
       if (error) throw error;
+
+      // Since the date column is of type 'date', it will come back as YYYY-MM-DD
+      console.log('Raw market data from Supabase:', data);
       setMarkets(data || []);
     } catch (error) {
       console.error('Error fetching markets:', error);
@@ -239,23 +243,35 @@ export default function MarketManager() {
     e.preventDefault();
     
     try {
+      const inputDate = formData.date; // Get the raw input date
+      console.log('RAW INPUT DATE FROM FORM:', inputDate);
+      
+      // Create submission data with exact date string
+      const submissionData = {
+        ...formData,
+        date: inputDate // Use the raw input date string
+      };
+
+      console.log('SUBMISSION DATA BEING SENT TO SUPABASE:', submissionData);
+
       if (isNewMarket) {
         const { data, error } = await supabase
           .from('markets')
           .insert([{
-            ...formData,
+            ...submissionData,
             user_id: user.id
           }])
           .select();
 
         if (error) throw error;
+        console.log('RESPONSE FROM SUPABASE INSERT:', data);
         setMessage('Market created successfully!');
         setSelectedMarket(null);
         setIsNewMarket(false);
       } else {
         const { error } = await supabase
           .from('markets')
-          .update(formData)
+          .update(submissionData)
           .eq('id', selectedMarket.id)
           .eq('user_id', user.id);
 
@@ -264,7 +280,16 @@ export default function MarketManager() {
         setSelectedMarket(null);
       }
 
-      fetchMarkets();
+      // Fetch markets and log what we get back
+      const { data: freshData } = await supabase
+        .from('markets')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: true });
+      
+      console.log('FRESH DATA AFTER SAVE:', freshData);
+      setMarkets(freshData || []);
+
     } catch (error) {
       console.error('Error saving market:', error);
       setMessage(`Error: ${error.message}`);
@@ -556,26 +581,59 @@ export default function MarketManager() {
     return sortMarkets(filtered);
   };
 
-  // Add this function to organize markets by time period
-  const organizeMarkets = (markets) => {
-    const now = new Date();
-    const endOfWeek = new Date();
-    endOfWeek.setDate(now.getDate() + (6 - now.getDay()));
-    endOfWeek.setHours(23, 59, 59, 999);
+  // Update the display of dates to avoid any automatic conversions
+  const formatDisplayDate = (dateStr) => {
+    // Split the date string and rearrange it
+    const [year, month, day] = dateStr.split('-');
+    return `${month}/${day}/${year.slice(2)}`;
+  };
 
+  // Update the market card display
+  const MarketCard = ({ market }) => (
+    <div className={styles.marketDetails}>
+      <div className={styles.detailItem}>
+        <span className={styles.detailLabel}>Date</span>
+        <span className={styles.detailValue}>
+          {formatDisplayDate(market.date)}
+        </span>
+      </div>
+      {/* ... rest of the market card ... */}
+    </div>
+  );
+
+  // Update the organizeMarkets function to use real dates
+  const organizeMarkets = (markets) => {
+    // Get real today's date
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStr = today.toLocaleDateString('en-CA');
+    
+    // Calculate end of current week
+    const endOfWeek = new Date(today);
+    endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
+    const endOfWeekStr = endOfWeek.toLocaleDateString('en-CA');
+
+    // Calculate end of current month
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const endOfMonthStr = endOfMonth.toLocaleDateString('en-CA');
+
+    console.log('ORGANIZING MARKETS:');
+    console.log('Actual today:', todayStr);
+    console.log('End of week:', endOfWeekStr);
+    console.log('End of month:', endOfMonthStr);
+    console.log('All market dates:', markets.map(m => ({ id: m.id, date: m.date, name: m.name })));
+
+    // Organize markets based on real dates
     return {
-      thisWeek: markets.filter(market => {
-        const marketDate = new Date(market.date);
-        return marketDate >= now && marketDate <= endOfWeek;
-      }),
-      upcoming: markets.filter(market => {
-        const marketDate = new Date(market.date);
-        return marketDate > endOfWeek;
-      }),
-      past: markets.filter(market => {
-        const marketDate = new Date(market.date);
-        return marketDate < now;
-      })
+      today: markets.filter(market => market.date === todayStr),
+      thisWeek: markets.filter(market => 
+        market.date > todayStr && 
+        market.date <= endOfWeekStr
+      ),
+      upcoming: markets.filter(market => 
+        market.date > endOfWeekStr
+      ),
+      past: markets.filter(market => market.date < todayStr)
     };
   };
 
@@ -706,6 +764,9 @@ export default function MarketManager() {
                 {Object.entries(organizeMarkets(filterAndSortMarkets(markets))).map(([section, sectionMarkets]) => {
                   let sectionTitle;
                   switch(section) {
+                    case 'today':
+                      sectionTitle = "Today's Markets";
+                      break;
                     case 'thisWeek':
                       sectionTitle = 'This Week';
                       break;
@@ -739,7 +800,7 @@ export default function MarketManager() {
                             <div className={styles.detailItem}>
                               <span className={styles.detailLabel}>Date</span>
                               <span className={styles.detailValue}>
-                                {new Date(market.date).toLocaleDateString()}
+                                {formatDisplayDate(market.date)}
                               </span>
                             </div>
                             <div className={styles.detailItem}>

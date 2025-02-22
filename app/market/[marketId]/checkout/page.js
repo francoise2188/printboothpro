@@ -60,50 +60,62 @@ export default function CheckoutPage() {
         const marketOwnerId = marketData.user_id;
         console.log('Found market owner:', marketOwnerId);
         
-        const { data, error } = await supabase
+        // Get the most recent settings for the market owner
+        const { data: ownerSettings, error: settingsError } = await supabase
           .from('payment_settings')
-          .select('*')
-          .eq('market_id', marketId)
+          .select('paypal_username, venmo_username, single_magnet_price, three_magnets_price, six_magnets_price, nine_magnets_price, enable_tax, tax_rate, coupons')
           .eq('user_id', marketOwnerId)
-          .maybeSingle();
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
 
-        console.log('Raw database response:', data);
-
-        if (error) {
-          console.error('Fetch error:', error);
-          throw error;
+        if (settingsError && settingsError.code !== 'PGRST116') {
+          console.error('Error fetching settings:', settingsError);
+          throw settingsError;
         }
-        
-        if (data) {
-          // Parse coupons if they're stored as a string
-          let parsedCoupons = [];
-          try {
-            parsedCoupons = typeof data.coupons === 'string' 
-              ? JSON.parse(data.coupons) 
-              : (data.coupons || []);
-            console.log('Parsed coupons:', parsedCoupons);
-          } catch (e) {
-            console.error('Error parsing coupons:', e);
-            parsedCoupons = [];
-          }
 
-          const newSettings = {
-            paypal_username: data.paypal_username || '',
-            venmo_username: data.venmo_username || '',
-            single_magnet_price: data.single_magnet_price || '0',
-            three_magnets_price: data.three_magnets_price || '0',
-            six_magnets_price: data.six_magnets_price || '0',
-            nine_magnets_price: data.nine_magnets_price || '0',
-            enable_tax: data.enable_tax || false,
-            tax_rate: data.tax_rate || '0',
-            coupons: parsedCoupons
-          };
-          
-          console.log('Settings being set:', newSettings);
-          setSettings(newSettings);
+        if (!ownerSettings) {
+          console.log('No settings found, using defaults');
+          setSettings({
+            paypal_username: '',
+            venmo_username: '',
+            single_magnet_price: '0',
+            three_magnets_price: '0',
+            six_magnets_price: '0',
+            nine_magnets_price: '0',
+            enable_tax: false,
+            tax_rate: '0',
+            coupons: []
+          });
+          return;
         }
+
+        console.log('Found owner settings:', ownerSettings);
+        setSettings({
+          paypal_username: ownerSettings.paypal_username || '',
+          venmo_username: ownerSettings.venmo_username || '',
+          single_magnet_price: ownerSettings.single_magnet_price || '0',
+          three_magnets_price: ownerSettings.three_magnets_price || '0',
+          six_magnets_price: ownerSettings.six_magnets_price || '0',
+          nine_magnets_price: ownerSettings.nine_magnets_price || '0',
+          enable_tax: ownerSettings.enable_tax || false,
+          tax_rate: ownerSettings.tax_rate || '0',
+          coupons: ownerSettings.coupons || []
+        });
       } catch (error) {
-        console.error('Error fetching settings:', error);
+        console.error('Error in fetchSettings:', error);
+        // Set default settings on error
+        setSettings({
+          paypal_username: '',
+          venmo_username: '',
+          single_magnet_price: '0',
+          three_magnets_price: '0',
+          six_magnets_price: '0',
+          nine_magnets_price: '0',
+          enable_tax: false,
+          tax_rate: '0',
+          coupons: []
+        });
       }
     }
 
@@ -114,27 +126,35 @@ export default function CheckoutPage() {
 
   // Calculate price based on quantity
   const getPrice = React.useCallback((qty) => {
-    let totalPrice;
+    let totalPrice = 0;
+    let remainingQty = qty;
     
-    // Check if quantity exactly matches a special tier
-    if (qty === 9) {
-      totalPrice = Number(settings.nine_magnets_price);
-      console.log('Using exact 9 magnets price:', totalPrice);
-    } else if (qty === 6) {
-      totalPrice = Number(settings.six_magnets_price);
-      console.log('Using exact 6 magnets price:', totalPrice);
-    } else if (qty === 3) {
-      totalPrice = Number(settings.three_magnets_price);
-      console.log('Using exact 3 magnets price:', totalPrice);
-    } else if (qty === 1) {
-      totalPrice = Number(settings.single_magnet_price);
-      console.log('Using single magnet price:', totalPrice);
-    } else {
-      // For any other quantity, charge the single price per photo
-      totalPrice = Number(settings.single_magnet_price) * qty;
-      console.log(`Using individual pricing: ${settings.single_magnet_price} x ${qty} = ${totalPrice}`);
+    // Handle quantities using best available tiers
+    while (remainingQty > 0) {
+      if (remainingQty >= 9) {
+        // Use 9-magnet price
+        totalPrice += Number(settings.nine_magnets_price);
+        remainingQty -= 9;
+        console.log('Applied 9-magnet price:', settings.nine_magnets_price);
+      } else if (remainingQty >= 6) {
+        // Use 6-magnet price
+        totalPrice += Number(settings.six_magnets_price);
+        remainingQty -= 6;
+        console.log('Applied 6-magnet price:', settings.six_magnets_price);
+      } else if (remainingQty >= 3) {
+        // Use 3-magnet price
+        totalPrice += Number(settings.three_magnets_price);
+        remainingQty -= 3;
+        console.log('Applied 3-magnet price:', settings.three_magnets_price);
+      } else {
+        // Add remaining magnets at single price
+        totalPrice += (Number(settings.single_magnet_price) * remainingQty);
+        console.log(`Applied single price ${settings.single_magnet_price} × ${remainingQty}`);
+        remainingQty = 0;
+      }
     }
     
+    console.log(`Final price for ${qty} magnets:`, totalPrice);
     return totalPrice;
   }, [settings]);
 
@@ -500,49 +520,6 @@ export default function CheckoutPage() {
             >
               Pay with Venmo
             </button>
-            
-            {/* Test Button - Only shows in development */}
-            {process.env.NODE_ENV === 'development' && (
-              <button
-                onClick={async () => {
-                  if (!photoId) {
-                    console.error('❌ No photoId found!');
-                    alert('No photo ID found');
-                    return;
-                  }
-
-                  console.log('🧪 Starting test checkout with:', {
-                    marketId,
-                    photoId,
-                    settings,
-                    pricing,
-                    quantity
-                  });
-
-                  // Update photo status
-                  const success = await updatePhotoStatus(photoId);
-                  
-                  if (success) {
-                    alert(`Test Successful!\n\nPhoto ID: ${photoId}\nTotal: $${pricing.total.toFixed(2)}\nStatus: Updated to pending`);
-                    router.push(`/market/${marketId}/success?photoId=${photoId}`);
-                  } else {
-                    alert('Error updating photo status');
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '0.875rem 1rem',
-                  backgroundColor: 'var(--accent-tan)',
-                  color: 'var(--primary-green)',
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  transition: 'all 0.2s ease',
-                  fontSize: '1rem'
-                }}
-              >
-                🧪 Test Checkout (Dev Only)
-              </button>
-            )}
           </div>
         </div>
       </div>

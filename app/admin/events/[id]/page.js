@@ -113,6 +113,9 @@ const EventDetailsPage = ({ params }) => {
   const [landingImageError, setLandingImageError] = useState(false);
   const [frameImageError, setFrameImageError] = useState(false);
 
+  const [previewLandingImage, setPreviewLandingImage] = useState(null);
+  const [previewFrameOverlay, setPreviewFrameOverlay] = useState(null);
+
   const eventTypes = [
     'Wedding',
     'Corporate Event',
@@ -212,84 +215,7 @@ const EventDetailsPage = ({ params }) => {
     try {
       setError(null);
       
-      // Step 1: Handle file uploads first
-      let landingBackgroundUrl = event.design_settings?.[0]?.landing_background;
-      let frameOverlayUrl = event.design_settings?.[0]?.frame_overlay;
-
-      // Upload landing page image if a new one is selected
-      if (landingPageImage) {
-        const timestamp = Date.now();
-        const landingFileName = `events/${id}/landing_${timestamp}`;
-        
-        const { data: landingData, error: landingError } = await supabase.storage
-          .from('designs')
-          .upload(landingFileName, landingPageImage, {
-            cacheControl: '3600',
-            upsert: true
-          });
-
-        if (landingError) throw new Error(`Landing image upload failed: ${landingError.message}`);
-
-        // Get the public URL
-        const { data: { publicUrl: landingUrl } } = supabase.storage
-          .from('designs')
-          .getPublicUrl(landingFileName);
-        
-        landingBackgroundUrl = landingUrl;
-      }
-
-      // Upload camera overlay if a new one is selected
-      if (cameraOverlay) {
-        const timestamp = Date.now();
-        const overlayFileName = `events/${id}/overlay_${timestamp}`;
-        
-        const { data: overlayData, error: overlayError } = await supabase.storage
-          .from('designs')
-          .upload(overlayFileName, cameraOverlay, {
-            cacheControl: '3600',
-            upsert: true
-          });
-
-        if (overlayError) throw new Error(`Overlay upload failed: ${overlayError.message}`);
-
-        // Get the public URL
-        const { data: { publicUrl: overlayUrl } } = supabase.storage
-          .from('designs')
-          .getPublicUrl(overlayFileName);
-        
-        frameOverlayUrl = overlayUrl;
-      }
-
-      // Step 2: Update or create design settings
-      const designSettingsData = {
-        event_id: id,
-        landing_background: landingBackgroundUrl,
-        frame_overlay: frameOverlayUrl,
-        updated_at: new Date().toISOString()
-      };
-
-      // Check if design settings exist for this event
-      const { data: existingSettings, error: checkError } = await supabase
-        .from('design_settings')
-        .select('*')
-        .eq('event_id', id)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error('Error checking design settings:', checkError);
-      }
-
-      // Update or insert design settings
-      const { error: designError } = await supabase
-        .from('design_settings')
-        .upsert({
-          id: existingSettings?.id, // This will update if exists, insert if doesn't
-          ...designSettingsData
-        });
-
-      if (designError) throw new Error(`Design settings update failed: ${designError.message}`);
-
-      // Step 3: Update event details
+      // Step 1: Update event details first
       const updatePayload = {
         name: editForm.eventName,
         date: editForm.eventDate,
@@ -306,7 +232,6 @@ const EventDetailsPage = ({ params }) => {
       };
 
       console.log('Updating event with payload:', updatePayload);
-      console.log('End time being sent:', editForm.endDate.split('T')[1]);
 
       const response = await fetch(`/api/events/${id}`, {
         method: 'PUT',
@@ -317,26 +242,83 @@ const EventDetailsPage = ({ params }) => {
       });
 
       const result = await response.json();
-      console.log('Update response:', result);
-
+      
       if (!result.success) {
         throw new Error(result.error || 'Failed to update event');
       }
 
-      // Update local event state immediately
-      setEvent(prevEvent => ({
-        ...prevEvent,
-        ...updatePayload,
-        start_time: updatePayload.start_time,
-        end_time: updatePayload.end_time
-      }));
+      // Step 2: Handle file uploads if any
+      let designSettingsChanged = false;
+      let landingBackgroundUrl = event.design_settings?.[0]?.landing_background;
+      let frameOverlayUrl = event.design_settings?.[0]?.frame_overlay;
 
-      // Show success message
+      if (landingPageImage) {
+        const timestamp = Date.now();
+        const landingFileName = `events/${id}/landing_${timestamp}`;
+        
+        const { data: landingData, error: landingError } = await supabase.storage
+          .from('designs')
+          .upload(landingFileName, landingPageImage, {
+            cacheControl: '3600',
+            upsert: true
+          });
+
+        if (landingError) throw new Error(`Landing image upload failed: ${landingError.message}`);
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('designs')
+          .getPublicUrl(landingFileName);
+        
+        landingBackgroundUrl = publicUrl;
+        designSettingsChanged = true;
+      }
+
+      if (cameraOverlay) {
+        const timestamp = Date.now();
+        const overlayFileName = `events/${id}/overlay_${timestamp}`;
+        
+        const { data: overlayData, error: overlayError } = await supabase.storage
+          .from('designs')
+          .upload(overlayFileName, cameraOverlay, {
+            cacheControl: '3600',
+            upsert: true
+          });
+
+        if (overlayError) throw new Error(`Overlay upload failed: ${overlayError.message}`);
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('designs')
+          .getPublicUrl(overlayFileName);
+        
+        frameOverlayUrl = publicUrl;
+        designSettingsChanged = true;
+      }
+
+      // Step 3: Update design settings only if files were uploaded
+      if (designSettingsChanged) {
+        const { data: existingSettings } = await supabase
+          .from('design_settings')
+          .select('*')
+          .eq('event_id', id)
+          .maybeSingle();
+
+        const { error: designError } = await supabase
+          .from('design_settings')
+          .upsert({
+            id: existingSettings?.id,
+            event_id: id,
+            landing_background: landingBackgroundUrl,
+            frame_overlay: frameOverlayUrl,
+            updated_at: new Date().toISOString()
+          });
+
+        if (designError) throw new Error(`Design settings update failed: ${designError.message}`);
+      }
+
+      // Show success message and refresh
       setIsEditing(false);
       setSuccessMessage('Event updated successfully');
       setTimeout(() => setSuccessMessage(''), 3000);
-
-      // Refresh event data
       await fetchEventDetails();
 
     } catch (err) {
@@ -374,6 +356,78 @@ const EventDetailsPage = ({ params }) => {
       }
     }
   };
+
+  const handleLandingImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setLandingPageImage(file);
+      // Create a preview URL for the selected file
+      setPreviewLandingImage(URL.createObjectURL(file));
+    }
+  };
+
+  const handleFrameOverlayChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setCameraOverlay(file);
+      // Create a preview URL for the selected file
+      setPreviewFrameOverlay(URL.createObjectURL(file));
+    }
+  };
+
+  const handleDeleteLandingImage = async () => {
+    if (window.confirm('Are you sure you want to delete the landing page background?')) {
+      try {
+        const { error } = await supabase
+          .from('design_settings')
+          .update({ landing_background: null })
+          .eq('event_id', id);
+
+        if (error) throw error;
+
+        // Clear the preview and file states
+        setLandingPageImage(null);
+        setPreviewLandingImage(null);
+        if (event.design_settings?.[0]) {
+          event.design_settings[0].landing_background = null;
+        }
+        setSuccessMessage('Landing page background deleted successfully');
+      } catch (err) {
+        setError('Failed to delete landing page background');
+      }
+    }
+  };
+
+  const handleDeleteFrameOverlay = async () => {
+    if (window.confirm('Are you sure you want to delete the frame overlay?')) {
+      try {
+        const { error } = await supabase
+          .from('design_settings')
+          .update({ frame_overlay: null })
+          .eq('event_id', id);
+
+        if (error) throw error;
+
+        // Clear the preview and file states
+        setCameraOverlay(null);
+        setPreviewFrameOverlay(null);
+        if (event.design_settings?.[0]) {
+          event.design_settings[0].frame_overlay = null;
+        }
+        setSuccessMessage('Frame overlay deleted successfully');
+      } catch (err) {
+        setError('Failed to delete frame overlay');
+      }
+    }
+  };
+
+  // Clean up preview URLs when component unmounts
+  useEffect(() => {
+    return () => {
+      if (previewLandingImage) URL.revokeObjectURL(previewLandingImage);
+      if (previewFrameOverlay) URL.revokeObjectURL(previewFrameOverlay);
+    };
+  }, [previewLandingImage, previewFrameOverlay]);
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
@@ -560,19 +614,28 @@ const EventDetailsPage = ({ params }) => {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => setLandingPageImage(e.target.files[0])}
+                        onChange={handleLandingImageChange}
                         className={styles.fileInput}
                       />
-                      {event.design_settings?.[0]?.landing_background && (
-                        <div className={styles.imageContainer}>
-                          <ImagePreview
-                            imageData={event.design_settings[0].landing_background}
-                            alt="Current Landing Background"
-                            width={200}
-                            height={150}
-                          />
-                        </div>
-                      )}
+                      <div className={styles.imageContainer}>
+                        {(previewLandingImage || event.design_settings?.[0]?.landing_background) && (
+                          <>
+                            <ImagePreview
+                              imageData={previewLandingImage || event.design_settings[0].landing_background}
+                              alt="Landing Background"
+                              width={200}
+                              height={150}
+                            />
+                            <button
+                              onClick={handleDeleteLandingImage}
+                              className={`${styles.deleteButton} ${styles.overlayDeleteButton}`}
+                              type="button"
+                            >
+                              Delete Background
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     <div className={styles.overlayCard}>
@@ -580,19 +643,28 @@ const EventDetailsPage = ({ params }) => {
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => setCameraOverlay(e.target.files[0])}
+                        onChange={handleFrameOverlayChange}
                         className={styles.fileInput}
                       />
-                      {event.design_settings?.[0]?.frame_overlay && (
-                        <div className={styles.imageContainer}>
-                          <ImagePreview
-                            imageData={event.design_settings[0].frame_overlay}
-                            alt="Frame Overlay"
-                            width={100}
-                            height={100}
-                          />
-                        </div>
-                      )}
+                      <div className={styles.imageContainer}>
+                        {(previewFrameOverlay || event.design_settings?.[0]?.frame_overlay) && (
+                          <>
+                            <ImagePreview
+                              imageData={previewFrameOverlay || event.design_settings[0].frame_overlay}
+                              alt="Frame Overlay"
+                              width={100}
+                              height={100}
+                            />
+                            <button
+                              onClick={handleDeleteFrameOverlay}
+                              className={`${styles.deleteButton} ${styles.overlayDeleteButton}`}
+                              type="button"
+                            >
+                              Delete Overlay
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

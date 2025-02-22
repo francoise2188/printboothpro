@@ -10,15 +10,28 @@
   "routes": [
     {
       "src": "/event/(.*)",
-      "dest": "/event/$1"
+      "dest": "/event/$1",
+      "continue": true
     },
     {
       "src": "/camera",
-      "dest": "/camera"
+      "dest": "/camera",
+      "continue": true
     },
     {
       "src": "/(.*)",
       "dest": "/$1"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
     }
   ]
 } 

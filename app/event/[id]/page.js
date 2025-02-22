@@ -1,31 +1,62 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
-export default function EventPage({ params }) {
+export default function EventPage() {
   const [email, setEmail] = useState('');
   const [backgroundUrl, setBackgroundUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
-  const eventId = params.id;
+  const params = useParams();
+  
+  // Get the raw ID from the URL
+  const rawId = params?.id || '';
+  // Clean the ID - remove any URL encoding and brackets
+  const eventId = rawId.replace(/[\[\]]/g, '');
 
   useEffect(() => {
+    let isMounted = true;
+
     async function checkEventStatus() {
+      if (!eventId) {
+        console.log('No event ID found');
+        setError('Event ID is missing');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Checking event status for ID:', eventId);
+
       try {
         setIsLoading(true);
+        
+        // Fetch event data with error logging
         const { data, error } = await supabase
           .from('events')
           .select('is_active')
           .eq('id', eventId)
           .single();
+        
+        console.log('Event data:', data);
 
-        if (error) throw error;
+        if (!isMounted) return;
+
+        if (error) {
+          console.error('Supabase error fetching event:', error.message);
+          throw error;
+        }
+
+        if (!data) {
+          console.error('No event found for ID:', eventId);
+          throw new Error('Event not found');
+        }
 
         // If event is not active, redirect to ended page
         if (!data.is_active) {
+          console.log('Event is not active, redirecting...');
           router.push('/event-ended');
           return;
         }
@@ -37,21 +68,41 @@ export default function EventPage({ params }) {
           .eq('event_id', eventId)
           .single();
 
-        if (designError) throw designError;
+        if (!isMounted) return;
+
+        if (designError) {
+          console.error('Error fetching design settings:', designError.message);
+          throw designError;
+        }
         
         if (designData?.landing_background) {
           setBackgroundUrl(designData.landing_background);
         }
       } catch (err) {
-        setError('Event not found or no longer available');
-        console.error('Error:', err);
+        if (!isMounted) return;
+        console.error('Error details:', err.message);
+        
+        // Set a more user-friendly error message
+        const errorMessage = err.message.includes('invalid input syntax') 
+          ? 'Invalid event ID format'
+          : err.message === 'Event not found' 
+            ? 'Event not found' 
+            : 'Unable to load event. Please try again later.';
+        
+        setError(errorMessage);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
     checkEventStatus();
-  }, [eventId]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [eventId, router]);
 
   if (isLoading) {
     return (
@@ -68,6 +119,7 @@ export default function EventPage({ params }) {
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center text-white">
           <h2 className="text-xl font-semibold">{error}</h2>
+          <p className="mt-2 text-gray-400">Event ID: {eventId || 'Not provided'}</p>
         </div>
       </div>
     );

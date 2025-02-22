@@ -37,86 +37,80 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      // First get the user's market
-      const { data: marketData, error: marketError } = await supabase
-        .from('markets')
-        .select('id')
-        .eq('user_id', user.id)
-        .limit(1);  // Get just the first market
+      console.log('🎯 Fetching settings for user:', user.id);
 
-      if (marketError) {
-        console.error('❌ Market fetch error:', JSON.stringify(marketError, null, 2));
-        throw marketError;
-      }
-
-      if (!marketData || marketData.length === 0) {
-        console.error('❌ No markets found for user');
-        throw new Error('No markets found');
-      }
-
-      const marketId = marketData[0].id;  // Use the first market
-      console.log('🎯 Fetching settings for market:', marketId, 'and user:', user.id);
-
-      const { data, error } = await supabase
+      // First, try to get existing settings
+      const { data: existingSettings, error: fetchError } = await supabase
         .from('payment_settings')
-        .select('*')
+        .select('id, user_id, paypal_username, venmo_username, single_magnet_price, three_magnets_price, six_magnets_price, nine_magnets_price, enable_tax, tax_rate, coupons')
         .eq('user_id', user.id)
-        .eq('market_id', marketId)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
-      if (error) {
-        // Only create new settings if we get a "not found" error
-        if (error.code === 'PGRST116') {
-          // Check if settings already exist for this market
-          const { data: existingSettings, error: checkError } = await supabase
-            .from('payment_settings')
-            .select('*')
-            .eq('market_id', marketId);
-
-          if (checkError) {
-            console.error('❌ Error checking existing settings:', JSON.stringify(checkError, null, 2));
-            throw checkError;
-          }
-
-          // Only create new settings if none exist for this market
-          if (!existingSettings || existingSettings.length === 0) {
-            console.log('⚠️ No settings found, creating new ones');
-            const { data: newData, error: insertError } = await supabase
-              .from('payment_settings')
-              .insert([{ 
-                user_id: user.id,
-                market_id: marketId,
-                paypal_username: '',
-                venmo_username: '',
-                single_magnet_price: '0',
-                three_magnets_price: '0',
-                six_magnets_price: '0',
-                nine_magnets_price: '0',
-                enable_tax: false,
-                tax_rate: '0',
-                coupons: []
-              }])
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error('❌ Insert error:', JSON.stringify(insertError, null, 2));
-              throw insertError;
-            }
-            console.log('✅ Created new settings:', newData);
-            setSettings(newData);
-            return;
-          }
-        }
-        console.error('❌ Settings fetch error:', JSON.stringify(error, null, 2));
-        throw error;
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('❌ Error fetching settings:', fetchError);
+        throw fetchError;
       }
 
-      console.log('✅ Fetched existing settings:', data);
-      setSettings(data);
+      // If we found existing settings, use them
+      if (existingSettings) {
+        console.log('✅ Found existing settings:', existingSettings);
+        setSettings({
+          paypal_username: existingSettings.paypal_username || '',
+          venmo_username: existingSettings.venmo_username || '',
+          single_magnet_price: existingSettings.single_magnet_price || '0',
+          three_magnets_price: existingSettings.three_magnets_price || '0',
+          six_magnets_price: existingSettings.six_magnets_price || '0',
+          nine_magnets_price: existingSettings.nine_magnets_price || '0',
+          enable_tax: existingSettings.enable_tax || false,
+          tax_rate: existingSettings.tax_rate || '0',
+          coupons: existingSettings.coupons || []
+        });
+        return;
+      }
+
+      // If no settings found, create new ones
+      console.log('⚠️ No settings found, creating new ones');
+      const defaultSettings = {
+        user_id: user.id,
+        paypal_username: '',
+        venmo_username: '',
+        single_magnet_price: '0',
+        three_magnets_price: '0',
+        six_magnets_price: '0',
+        nine_magnets_price: '0',
+        enable_tax: false,
+        tax_rate: '0',
+        coupons: []
+      };
+
+      const { data: newData, error: insertError } = await supabase
+        .from('payment_settings')
+        .insert([defaultSettings])
+        .select('id, user_id, paypal_username, venmo_username, single_magnet_price, three_magnets_price, six_magnets_price, nine_magnets_price, enable_tax, tax_rate, coupons')
+        .single();
+
+      if (insertError) {
+        console.error('❌ Insert error:', insertError);
+        throw insertError;
+      }
+
+      console.log('✅ Created new settings:', newData);
+      setSettings({
+        paypal_username: newData.paypal_username || '',
+        venmo_username: newData.venmo_username || '',
+        single_magnet_price: newData.single_magnet_price || '0',
+        three_magnets_price: newData.three_magnets_price || '0',
+        six_magnets_price: newData.six_magnets_price || '0',
+        nine_magnets_price: newData.nine_magnets_price || '0',
+        enable_tax: newData.enable_tax || false,
+        tax_rate: newData.tax_rate || '0',
+        coupons: newData.coupons || []
+      });
       setMessage('');
     } catch (error) {
-      console.error('❌ Error in fetchSettings:', JSON.stringify(error, null, 2));
+      console.error('❌ Error in fetchSettings:', error);
       setMessage(`Error: ${error.message}`);
     }
   };
@@ -124,101 +118,78 @@ export default function AdminSettingsPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setMessage('');
 
     try {
       if (!user) {
         throw new Error('No user logged in');
       }
 
-      // First get the user's market
-      const { data: marketData, error: marketError } = await supabase
-        .from('markets')
-        .select('id')
-        .eq('user_id', user.id)
-        .limit(1);  // Get just the first market
-
-      if (marketError) {
-        console.error('❌ Market fetch error:', JSON.stringify(marketError, null, 2));
-        throw marketError;
-      }
-
-      if (!marketData || marketData.length === 0) {
-        console.error('❌ No markets found for user');
-        throw new Error('No markets found');
-      }
-
-      const marketId = marketData[0].id;  // Use the first market
-      console.log('💾 Preparing to save settings:', {
-        marketId,
-        userId: user.id,
-        settings: settings
-      });
-
-      // First check if settings exist
-      const { data: existingSettings, error: checkError } = await supabase
-        .from('payment_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('market_id', marketId)
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        console.error('❌ Error checking existing settings:', JSON.stringify(checkError, null, 2));
-        throw checkError;
-      }
-
-      // Prepare the settings data
-      const settingsData = {
+      // Prepare settings for database
+      const sanitizedSettings = {
         user_id: user.id,
-        market_id: marketId,
-        paypal_username: settings.paypal_username || '',
-        venmo_username: settings.venmo_username || '',
-        single_magnet_price: settings.single_magnet_price || '0',
-        three_magnets_price: settings.three_magnets_price || '0',
-        six_magnets_price: settings.six_magnets_price || '0',
-        nine_magnets_price: settings.nine_magnets_price || '0',
-        enable_tax: settings.enable_tax || false,
-        tax_rate: settings.tax_rate || '0',
+        paypal_username: settings.paypal_username.trim(),
+        venmo_username: settings.venmo_username.trim(),
+        single_magnet_price: Number(settings.single_magnet_price || 0).toString(),
+        three_magnets_price: Number(settings.three_magnets_price || 0).toString(),
+        six_magnets_price: Number(settings.six_magnets_price || 0).toString(),
+        nine_magnets_price: Number(settings.nine_magnets_price || 0).toString(),
+        enable_tax: Boolean(settings.enable_tax),
+        tax_rate: Number(settings.tax_rate || 0).toString(),
         coupons: settings.coupons || [],
         updated_at: new Date().toISOString()
       };
 
-      console.log('📝 Saving settings data:', settingsData);
+      console.log('📝 Saving settings data:', sanitizedSettings);
+
+      // Get the most recent settings record
+      const { data: existingData } = await supabase
+        .from('payment_settings')
+        .select('id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
 
       let saveResult;
-      if (!existingSettings) {
-        // Insert new settings
-        console.log('➕ Inserting new settings...');
+      if (!existingData) {
+        console.log('➕ No existing record, inserting new settings...');
         saveResult = await supabase
           .from('payment_settings')
-          .insert([settingsData])
-          .select()
+          .insert([sanitizedSettings])
+          .select('id, user_id, paypal_username, venmo_username, single_magnet_price, three_magnets_price, six_magnets_price, nine_magnets_price, enable_tax, tax_rate, coupons')
           .single();
       } else {
-        // Update existing settings
-        console.log('🔄 Updating existing settings...');
+        console.log('🔄 Updating existing settings with ID:', existingData.id);
         saveResult = await supabase
           .from('payment_settings')
-          .update(settingsData)
-          .eq('user_id', user.id)
-          .eq('market_id', marketId)
-          .select()
+          .update(sanitizedSettings)
+          .eq('id', existingData.id)  // Use the specific record ID
+          .select('id, user_id, paypal_username, venmo_username, single_magnet_price, three_magnets_price, six_magnets_price, nine_magnets_price, enable_tax, tax_rate, coupons')
           .single();
       }
 
       if (saveResult.error) {
-        console.error('❌ Save error:', JSON.stringify(saveResult.error, null, 2));
         throw saveResult.error;
       }
 
       console.log('✅ Settings saved successfully:', saveResult.data);
       
-      // Refresh settings from the database
-      await fetchSettings();
-      
+      // Update local state with saved data
+      setSettings({
+        paypal_username: saveResult.data.paypal_username || '',
+        venmo_username: saveResult.data.venmo_username || '',
+        single_magnet_price: saveResult.data.single_magnet_price || '0',
+        three_magnets_price: saveResult.data.three_magnets_price || '0',
+        six_magnets_price: saveResult.data.six_magnets_price || '0',
+        nine_magnets_price: saveResult.data.nine_magnets_price || '0',
+        enable_tax: saveResult.data.enable_tax || false,
+        tax_rate: saveResult.data.tax_rate || '0',
+        coupons: saveResult.data.coupons || []
+      });
       setMessage('Settings saved successfully!');
     } catch (error) {
-      console.error('❌ Error in handleSubmit:', JSON.stringify(error, null, 2));
+      console.error('❌ Error in handleSubmit:', error);
       setMessage(`Error: ${error.message}`);
     } finally {
       setSaving(false);

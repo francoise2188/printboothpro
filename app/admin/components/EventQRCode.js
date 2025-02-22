@@ -7,17 +7,22 @@ import { useAuth } from '../../../lib/AuthContext';
 export default function EventQRCode({ eventId, eventName }) {
   const [mounted, setMounted] = useState(false);
   const [eventUrl, setEventUrl] = useState('');
-  const [isActive, setIsActive] = useState(true); // New state for QR status
+  const [isActive, setIsActive] = useState(true);
   const supabase = createClientComponentClient();
   const { user } = useAuth();
 
   useEffect(() => {
     setMounted(true);
-    if (typeof window !== 'undefined') {
-      setEventUrl(`${window.location.origin}/event/${eventId}`);
-    }
+    // Ensure clean URL construction
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin
+      : '';
+    // Create the event URL without any encoding
+    const newEventUrl = `${baseUrl}/event/${eventId}`;
+    console.log('Generated Event URL:', newEventUrl);
+    setEventUrl(newEventUrl);
     
-    // Fetch initial event status with user_id check
+    // Fetch initial event status
     async function fetchEventStatus() {
       if (!user) return;
       
@@ -25,7 +30,6 @@ export default function EventQRCode({ eventId, eventName }) {
         .from('events')
         .select('is_active')
         .eq('id', eventId)
-        .eq('user_id', user.id)
         .single();
       
       if (data) {
@@ -77,8 +81,10 @@ export default function EventQRCode({ eventId, eventName }) {
       <div className="flex flex-col items-center">
         <div className="relative">
           <QRCodeSVG 
-            value={eventUrl} 
-            size={200}
+            value={eventUrl}
+            size={256}
+            level="H"
+            includeMargin={true}
             className={`mb-4 ${!isActive && 'opacity-50'}`}
           />
           {!isActive && (
@@ -90,7 +96,11 @@ export default function EventQRCode({ eventId, eventName }) {
           )}
         </div>
         
-        <p className="text-sm text-gray-600 mb-2">
+        <div className="mt-2 p-2 bg-gray-100 rounded text-sm break-all max-w-full">
+          <p className="font-mono">{eventUrl}</p>
+        </div>
+        
+        <p className="text-sm text-gray-600 my-2">
           {isActive 
             ? 'Scan this code to access the photo booth'
             : 'QR code is currently deactivated'
@@ -128,17 +138,23 @@ export default function EventQRCode({ eventId, eventName }) {
                         font-weight: bold;
                         text-align: center;
                       }
-                      svg {
-                        width: 600px !important;
-                        height: 600px !important;
+                      .qr-container {
+                        text-align: center;
+                      }
+                      .url-display {
+                        margin-top: 20px;
+                        font-family: monospace;
+                        font-size: 14px;
+                        color: #666;
                       }
                       ${!isActive ? '.qr-code { opacity: 0.5; }' : ''}
                     </style>
                   </head>
                   <body>
                     <h2>${eventName || 'Event'}</h2>
-                    <div class="qr-code">
+                    <div class="qr-container">
                       ${document.querySelector('.flex.flex-col.items-center svg').outerHTML}
+                      <div class="url-display">${eventUrl}</div>
                     </div>
                     ${!isActive ? '<p style="text-align: center; color: red; margin-top: 20px;">QR Code Deactivated</p>' : ''}
                   </body>

@@ -179,7 +179,7 @@ export default function CameraComponent() {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment',
+          facingMode: facingMode,
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         },
@@ -193,6 +193,11 @@ export default function CameraComponent() {
       console.error('Camera error:', error);
       alert('Failed to start camera. Please make sure you have given camera permissions.');
     }
+  };
+
+  const switchCamera = async () => {
+    setFacingMode(prevMode => prevMode === 'user' ? 'environment' : 'user');
+    await startCamera();
   };
 
   const takePhoto = () => {
@@ -247,6 +252,43 @@ export default function CameraComponent() {
     };
   }, []);
 
+  // Add frame overlay fetching for events
+  useEffect(() => {
+    async function fetchFrame() {
+      if (!eventId) {
+        console.log('⚠️ No event ID found in URL');
+        return;
+      }
+      
+      try {
+        console.log('🎯 Fetching frame for event:', eventId);
+        
+        // Fetch from design_settings table instead of event_camera_settings
+        const { data, error } = await supabase
+          .from('design_settings')
+          .select('frame_overlay')
+          .eq('event_id', eventId)
+          .single();
+
+        if (error) {
+          console.error('❌ Settings fetch error:', error);
+          return;
+        }
+
+        if (data?.frame_overlay) {
+          console.log('🖼️ Found frame URL:', data.frame_overlay);
+          setOverlayUrl(data.frame_overlay);
+        } else {
+          console.log('⚠️ No frame overlay found for event');
+        }
+      } catch (error) {
+        console.error('💥 Error:', error);
+      }
+    }
+
+    fetchFrame();
+  }, [eventId]);
+
   const savePhoto = async () => {
     if (!photo) {
       console.log('⚠️ No photo taken yet');
@@ -261,18 +303,22 @@ export default function CameraComponent() {
       const base64Data = photo.replace(/^data:image\/\w+;base64,/, '');
       const photoBlob = Buffer.from(base64Data, 'base64');
 
-      // Generate unique filename
+      // Generate unique filename and path based on whether it's an event photo
       const timestamp = Date.now();
-      const filename = `booth_photos/${timestamp}.jpg`;
+      const filename = eventId 
+        ? `event_photos/${eventId}/${timestamp}.jpg`
+        : `booth_photos/${timestamp}.jpg`;
       
       // Generate order code
-      const orderCode = `BTH-${timestamp.toString().slice(-6)}`;
+      const orderCode = eventId
+        ? `EVT-${timestamp.toString().slice(-6)}`
+        : `BTH-${timestamp.toString().slice(-6)}`;
       console.log('📝 Generated order code:', orderCode);
 
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase
         .storage
-        .from('booth_photos')
+        .from(eventId ? 'event_photos' : 'booth_photos')
         .upload(filename, photoBlob, {
           contentType: 'image/jpeg'
         });
@@ -285,11 +331,18 @@ export default function CameraComponent() {
       // Get public URL
       const { data: { publicUrl } } = supabase
         .storage
-        .from('booth_photos')
+        .from(eventId ? 'event_photos' : 'booth_photos')
         .getPublicUrl(filename);
 
       // Prepare database record
-      const photoData = {
+      const photoData = eventId ? {
+        event_id: eventId,
+        photo_url: filename,
+        status: 'pending',
+        source: 'event_booth',
+        created_at: new Date().toISOString(),
+        order_code: orderCode,
+      } : {
         photo_url: filename,
         status: 'pending',
         source: 'booth',
@@ -299,9 +352,9 @@ export default function CameraComponent() {
 
       console.log('📝 Preparing to save photo data:', photoData);
 
-      // Save record to database
+      // Save record to database in the appropriate table
       const { data: photoRecord, error: dbError } = await supabase
-        .from('booth_photos')
+        .from(eventId ? 'event_photos' : 'booth_photos')
         .insert([photoData])
         .select()
         .single();
@@ -313,8 +366,11 @@ export default function CameraComponent() {
 
       console.log('✅ Photo saved successfully:', photoRecord);
 
-      // Redirect to checkout with photoId
-      router.push(`/checkout?photoId=${photoRecord.id}`);
+      // Redirect to appropriate checkout
+      router.push(eventId 
+        ? `/event/${eventId}/checkout?photoId=${photoRecord.id}`
+        : `/checkout?photoId=${photoRecord.id}`
+      );
 
     } catch (error) {
       console.error('❌ Error saving photo:', error);
@@ -435,25 +491,43 @@ export default function CameraComponent() {
             </button>
           </>
         ) : (
-          <button 
-            onClick={startCountdown}
-            style={{
-              width: '100%',
-              padding: '16px',
-              backgroundColor: '#3B82F6',
-              color: 'white',
-              borderRadius: '8px',
-              border: 'none',
-              fontSize: '16px',
-              fontWeight: '500'
-            }}
-          >
-            Take Photo
-          </button>
+          <>
+            <button 
+              onClick={startCountdown}
+              style={{
+                width: '100%',
+                padding: '16px',
+                backgroundColor: '#3B82F6',
+                color: 'white',
+                borderRadius: '8px',
+                border: 'none',
+                fontSize: '16px',
+                fontWeight: '500'
+              }}
+            >
+              Take Photo
+            </button>
+
+            <button 
+              onClick={switchCamera}
+              style={{
+                width: '100%',
+                padding: '16px',
+                backgroundColor: '#6366F1',
+                color: 'white',
+                borderRadius: '8px',
+                border: 'none',
+                fontSize: '16px',
+                fontWeight: '500'
+              }}
+            >
+              Switch Camera {facingMode === 'user' ? '(Selfie Mode)' : '(Regular Mode)'}
+            </button>
+          </>
         )}
         
         <button 
-          onClick={() => router.push('/')}
+          onClick={() => router.push(eventId ? `/event/${eventId}` : '/')}
           style={{
             width: '100%',
             padding: '16px',
@@ -465,7 +539,7 @@ export default function CameraComponent() {
             fontWeight: '500'
           }}
         >
-          Back to Home
+          {eventId ? 'Back to Event' : 'Back to Home'}
         </button>
       </div>
 

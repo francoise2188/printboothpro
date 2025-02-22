@@ -22,6 +22,15 @@ const nextConfig = {
     }
     return config
   },
+  // Update rewrites to handle event routes properly
+  async rewrites() {
+    return [
+      {
+        source: '/event/:path*',
+        destination: '/event/:path*',
+      }
+    ]
+  },
 }
 
 module.exports = nextConfig

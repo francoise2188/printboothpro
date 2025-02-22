@@ -423,11 +423,20 @@ export default function EventsPage() {
     const currentYear = now.getFullYear();
 
     return {
+      today: events.filter(event => {
+        const eventDate = new Date(event.date);
+        return eventDate.getUTCFullYear() === today.getUTCFullYear() &&
+               eventDate.getUTCMonth() === today.getUTCMonth() &&
+               eventDate.getUTCDate() === today.getUTCDate();
+      }),
       thisMonth: events.filter(event => {
         const eventDate = new Date(event.date);
         return eventDate >= today && 
                eventDate.getMonth() === currentMonth && 
-               eventDate.getFullYear() === currentYear;
+               eventDate.getFullYear() === currentYear &&
+               !(eventDate.getUTCFullYear() === today.getUTCFullYear() &&
+                 eventDate.getUTCMonth() === today.getUTCMonth() &&
+                 eventDate.getUTCDate() === today.getUTCDate());
       }),
       upcoming: events.filter(event => {
         const eventDate = new Date(event.date);
@@ -603,16 +612,14 @@ export default function EventsPage() {
             </div>
           </div>
 
-          {event.extendedProps.type !== 'market' && (
-            <div className={styles.expandedEventActions}>
-              <button
-                onClick={handleViewDetails}
-                className={`${styles.actionButton} ${styles.viewButton}`}
-              >
-                View Details
-              </button>
-            </div>
-          )}
+          <div className={styles.expandedEventActions}>
+            <button
+              onClick={handleViewDetails}
+              className={`${styles.actionButton} ${styles.viewButton}`}
+            >
+              View Details
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -992,6 +999,65 @@ export default function EventsPage() {
         <>
           {viewMode === 'list' ? (
             <div className={styles.eventsList}>
+              {/* Today's Events */}
+              {groupedEvents.today.length > 0 && (
+                <div className={styles.eventGroup}>
+                  <h2 className={styles.groupTitle}>Today's Events</h2>
+                  {groupedEvents.today.map(event => (
+                    <div key={event.id} className={styles.eventCard}>
+                      <div className={styles.eventHeader}>
+                        <div>
+                          <h3 className={styles.eventTitle}>{event.name}</h3>
+                          <p className={styles.eventDate}>
+                            {formatEventDate(event.date)} • 
+                            {event.start_time && ` ${formatTime(event.start_time)}`}
+                            {event.end_time && ` - ${formatTime(event.end_time)}`}
+                          </p>
+                        </div>
+                        <span className={`${styles.status} ${statusColors[event.status]}`}>
+                          {statusOptions.find(opt => opt.value === event.status)?.label}
+                        </span>
+                      </div>
+
+                      <div className={styles.eventDetails}>
+                        <div className={styles.detailItem}>
+                          <span className={styles.detailLabel}>Client</span>
+                          <span className={styles.detailValue}>{event.client_name || 'N/A'}</span>
+                        </div>
+                        <div className={styles.detailItem}>
+                          <span className={styles.detailLabel}>Location</span>
+                          <span className={styles.detailValue}>{event.location || 'N/A'}</span>
+                        </div>
+                        <div className={styles.detailItem}>
+                          <span className={styles.detailLabel}>Package</span>
+                          <span className={styles.detailValue}>{event.package || 'N/A'}</span>
+                        </div>
+                      </div>
+
+                      <div className={styles.eventActions}>
+                        <Link href={`/admin/events/${event.id}`}>
+                          <button className={`${styles.actionButton} ${styles.viewButton}`}>
+                            View Details
+                          </button>
+                        </Link>
+                        <button
+                          onClick={() => handleEditEvent(event)}
+                          className={`${styles.actionButton} ${styles.editButton}`}
+                        >
+                          Edit Event
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEvent(event.id)}
+                          className={`${styles.actionButton} ${styles.deleteButton}`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* This Month's Events */}
               {groupedEvents.thisMonth.length > 0 && (
                 <div className={styles.eventGroup}>
