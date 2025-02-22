@@ -15,6 +15,7 @@ export default function EventCameraComponent({ eventId }) {
   const [countdownNumber, setCountdownNumber] = useState(null);
   const router = useRouter();
   const supabase = createClientComponentClient();
+  const [facingMode, setFacingMode] = useState('environment');
 
   // Fetch frame overlay from Supabase
   useEffect(() => {
@@ -153,7 +154,7 @@ export default function EventCameraComponent({ eventId }) {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: 'environment',
+          facingMode: facingMode,
           width: { ideal: 1920 },
           height: { ideal: 1080 }
         },
@@ -188,6 +189,12 @@ export default function EventCameraComponent({ eventId }) {
         takePhoto();
       }
     }, 1000);
+  };
+
+  const switchCamera = async () => {
+    const newMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(newMode);
+    await startCamera();
   };
 
   return (
@@ -243,12 +250,24 @@ export default function EventCameraComponent({ eventId }) {
             </button>
           </>
         ) : (
-          <button 
-            onClick={startCountdown}
-            className="w-full p-3 bg-blue-500 text-white rounded-lg"
-          >
-            Take Photo
-          </button>
+          <>
+            <button 
+              onClick={startCountdown}
+              className="w-full p-3 bg-blue-500 text-white rounded-lg"
+            >
+              Take Photo
+            </button>
+            <button 
+              onClick={switchCamera}
+              className="w-full p-3 bg-purple-500 text-white rounded-lg flex items-center justify-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2H4zm12 12H4V4h12v10z" clipRule="evenodd" />
+                <path d="M10 7a3 3 0 100 6 3 3 0 000-6z" />
+              </svg>
+              Switch Camera
+            </button>
+          </>
         )}
         <button 
           onClick={() => router.push(`/event/${eventId}`)}
