@@ -268,9 +268,9 @@ export default function CameraComponent() {
           .from('design_settings')
           .select('frame_overlay')
           .eq('event_id', eventId)
-          .single();
+          .maybeSingle();  // Use maybeSingle() instead of single()
 
-        if (error) {
+        if (error && error.code !== 'PGRST116') {  // Only log real errors
           console.error('❌ Settings fetch error:', error);
           return;
         }
@@ -306,19 +306,13 @@ export default function CameraComponent() {
       // Generate unique filename and path based on whether it's an event photo
       const timestamp = Date.now();
       const filename = eventId 
-        ? `event_photos/${eventId}/${timestamp}.jpg`
+        ? `photos/${eventId}/${timestamp}.jpg`
         : `booth_photos/${timestamp}.jpg`;
-      
-      // Generate order code
-      const orderCode = eventId
-        ? `EVT-${timestamp.toString().slice(-6)}`
-        : `BTH-${timestamp.toString().slice(-6)}`;
-      console.log('📝 Generated order code:', orderCode);
 
       // Upload to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase
         .storage
-        .from(eventId ? 'event_photos' : 'booth_photos')
+        .from('photos')
         .upload(filename, photoBlob, {
           contentType: 'image/jpeg'
         });
@@ -331,30 +325,28 @@ export default function CameraComponent() {
       // Get public URL
       const { data: { publicUrl } } = supabase
         .storage
-        .from(eventId ? 'event_photos' : 'booth_photos')
+        .from('photos')
         .getPublicUrl(filename);
 
       // Prepare database record
       const photoData = eventId ? {
         event_id: eventId,
-        photo_url: filename,
+        url: filename,
         status: 'pending',
         source: 'event_booth',
-        created_at: new Date().toISOString(),
-        order_code: orderCode,
+        created_at: new Date().toISOString()
       } : {
-        photo_url: filename,
+        url: filename,
         status: 'pending',
         source: 'booth',
-        created_at: new Date().toISOString(),
-        order_code: orderCode,
+        created_at: new Date().toISOString()
       };
 
       console.log('📝 Preparing to save photo data:', photoData);
 
       // Save record to database in the appropriate table
       const { data: photoRecord, error: dbError } = await supabase
-        .from(eventId ? 'event_photos' : 'booth_photos')
+        .from('photos')
         .insert([photoData])
         .select()
         .single();
@@ -366,11 +358,8 @@ export default function CameraComponent() {
 
       console.log('✅ Photo saved successfully:', photoRecord);
 
-      // Redirect to appropriate checkout
-      router.push(eventId 
-        ? `/event/${eventId}/checkout?photoId=${photoRecord.id}`
-        : `/checkout?photoId=${photoRecord.id}`
-      );
+      // Redirect to thank you page
+      router.push('/thank-you');
 
     } catch (error) {
       console.error('❌ Error saving photo:', error);
@@ -403,16 +392,13 @@ export default function CameraComponent() {
             }}
           />
         ) : (
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            playsInline 
-            muted 
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover'
-            }} 
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover rounded-xl"
+            style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
           />
         )}
         {overlayUrl && (
