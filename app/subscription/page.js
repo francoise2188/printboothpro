@@ -74,6 +74,13 @@ export default function SubscriptionPage() {
               Try Demo Version
             </button>
 
+            <div className={styles.loginSection}>
+              <p className={styles.loginText}>Already have an account?</p>
+              <Link href="/login" className={styles.loginButton}>
+                Log In
+              </Link>
+            </div>
+
             <p className={styles.guarantee}>
               Online payments coming soon!
             </p>

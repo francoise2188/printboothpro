@@ -526,4 +526,35 @@
   .whySection {
     padding: 2rem 1rem;
   }
+}
+
+.loginSection {
+  margin-top: 1.5rem;
+  text-align: center;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.loginText {
+  color: #64748b;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.loginButton {
+  display: inline-block;
+  padding: 0.5rem 2rem;
+  color: var(--primary-green);
+  background-color: transparent;
+  border: 2px solid var(--primary-green);
+  border-radius: 0.5rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.loginButton:hover {
+  background-color: var(--primary-green);
+  color: white;
+  transform: translateY(-1px);
 } 

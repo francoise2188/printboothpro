@@ -331,12 +331,12 @@ export default function CameraComponent() {
       // Prepare database record
       const photoData = eventId ? {
         event_id: eventId,
-        url: filename,
+        url: publicUrl,
         status: 'pending',
         source: 'event_booth',
         created_at: new Date().toISOString()
       } : {
-        url: filename,
+        url: publicUrl,
         status: 'pending',
         source: 'booth',
         created_at: new Date().toISOString()

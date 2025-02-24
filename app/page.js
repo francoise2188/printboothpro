@@ -15,9 +15,13 @@ function HomeContent() {
   const error = searchParams.get('error');
 
   useEffect(() => {
-    async function checkEventStatus() {
-      if (!eventId) return;
+    // If there's no event ID, redirect to subscription page
+    if (!eventId) {
+      router.push('/subscription');
+      return;
+    }
 
+    async function checkEventStatus() {
       const { data, error } = await supabase
         .from('events')
         .select('is_active')
@@ -36,7 +40,7 @@ function HomeContent() {
     }
 
     checkEventStatus();
-  }, [eventId]);
+  }, [eventId, router]);
 
   useEffect(() => {
     async function fetchEventData() {
