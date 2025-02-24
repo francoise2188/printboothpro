@@ -122,6 +122,11 @@ export default function EventsPage() {
         .order('date', { ascending: false });
 
       if (eventsError) throw eventsError;
+
+      // Add debug logging
+      console.log('Debug - Raw events from database:', eventsData);
+      console.log('Debug - Sample event date format:', eventsData?.[0]?.date);
+
       setEvents(eventsData || []);
     } catch (error) {
       console.error('Error fetching events:', error);
@@ -255,9 +260,12 @@ export default function EventsPage() {
     setIsSubmitting(true);
     
     try {
+      // Just use the date string directly from the form
+      console.log('Debug - Form submission date:', eventDate);
+
       const eventData = {
         name: eventName,
-        date: eventDate,
+        date: eventDate,  // This will now be just YYYY-MM-DD
         status: eventStatus,
         start_time: startTime,
         end_time: endTime,
@@ -272,6 +280,8 @@ export default function EventsPage() {
         client_phone: clientPhone,
         user_id: user.id
       };
+
+      console.log('Debug - Event data being saved:', eventData);
 
       let eventId;
       
@@ -415,39 +425,32 @@ export default function EventsPage() {
     }
   };
 
-  // In the groupEventsByTimePeriod function, update the date comparison logic
+  // Update the groupEventsByTimePeriod function
   const groupEventsByTimePeriod = (events) => {
-    const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    // Get today's date as YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
+    const [currentYear, currentMonth] = today.split('-');
+
+    console.log('Debug - Today\'s date:', today);
 
     return {
       today: events.filter(event => {
-        const eventDate = new Date(event.date);
-        return eventDate.getUTCFullYear() === today.getUTCFullYear() &&
-               eventDate.getUTCMonth() === today.getUTCMonth() &&
-               eventDate.getUTCDate() === today.getUTCDate();
+        console.log('Debug - Comparing dates:', {
+          eventName: event.name,
+          eventDate: event.date,
+          today: today,
+          isEqual: event.date === today
+        });
+        return event.date === today;
       }),
       thisMonth: events.filter(event => {
-        const eventDate = new Date(event.date);
-        return eventDate >= today && 
-               eventDate.getMonth() === currentMonth && 
-               eventDate.getFullYear() === currentYear &&
-               !(eventDate.getUTCFullYear() === today.getUTCFullYear() &&
-                 eventDate.getUTCMonth() === today.getUTCMonth() &&
-                 eventDate.getUTCDate() === today.getUTCDate());
+        const [eventYear, eventMonth] = event.date.split('-');
+        return eventYear === currentYear && 
+               eventMonth === currentMonth && 
+               event.date !== today;
       }),
-      upcoming: events.filter(event => {
-        const eventDate = new Date(event.date);
-        return eventDate >= today && 
-               (eventDate.getMonth() > currentMonth || 
-                eventDate.getFullYear() > currentYear);
-      }),
-      past: events.filter(event => {
-        const eventDate = new Date(event.date);
-        return eventDate < today;
-      })
+      upcoming: events.filter(event => event.date > today),
+      past: events.filter(event => event.date < today)
     };
   };
 
@@ -504,6 +507,14 @@ export default function EventsPage() {
 
   const sortedEvents = getSortedEvents(events);
   const groupedEvents = groupEventsByTimePeriod(sortedEvents);
+
+  // Add console log to help debug
+  console.log('Grouped Events:', {
+    today: groupedEvents.today?.length,
+    thisMonth: groupedEvents.thisMonth?.length,
+    upcoming: groupedEvents.upcoming?.length,
+    past: groupedEvents.past?.length
+  });
 
   // Update the getCalendarEvents function
   const getCalendarEvents = () => {

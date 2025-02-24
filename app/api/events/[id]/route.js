@@ -270,7 +270,70 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // Delete associated design settings first
+    // Delete in this order:
+    // 1. Delete photos from storage
+    // 2. Delete photo records from 'photos' table
+    // 3. Delete design settings
+    // 4. Delete event record
+
+    // 1. Get and delete photos from storage
+    const { data: photos, error: photosError } = await supabaseServer
+      .from('photos')  // Changed from event_photos to photos
+      .select('photo_url')
+      .eq('event_id', id);
+
+    if (photosError) {
+      console.error('Error fetching photos:', photosError);
+      // Don't return error, continue with other deletions
+      console.log('Continuing deletion process despite photo fetch error');
+    }
+
+    // Delete photo files from storage if they exist
+    if (photos && photos.length > 0) {
+      console.log('Found photos to delete:', photos.length);
+      
+      // Extract just the file paths from the full URLs
+      const photoUrls = photos
+        .map(p => {
+          if (!p.photo_url) return null;
+          // Remove the storage URL prefix to get just the file path
+          const match = p.photo_url.match(/photos\/.*$/);  // Updated regex pattern
+          return match ? match[0] : null;
+        })
+        .filter(Boolean);
+
+      console.log('Attempting to delete photos:', photoUrls);
+
+      if (photoUrls.length > 0) {
+        const { error: storageError } = await supabaseServer.storage
+          .from('photos')
+          .remove(photoUrls);
+
+        if (storageError) {
+          console.error('Error deleting photos from storage:', storageError);
+          // Continue with deletion even if storage cleanup fails
+          console.log('Continuing deletion process despite storage cleanup error');
+        } else {
+          console.log('Successfully deleted photos from storage');
+        }
+      }
+    }
+
+    // 2. Delete photo records
+    const { error: photoDeleteError } = await supabaseServer
+      .from('photos')  // Changed from event_photos to photos
+      .delete()
+      .eq('event_id', id);
+
+    if (photoDeleteError) {
+      console.error('Error deleting photo records:', photoDeleteError);
+      // Continue with other deletions
+      console.log('Continuing deletion process despite photo records deletion error');
+    } else {
+      console.log('Successfully deleted photo records');
+    }
+
+    // 3. Delete design settings
     const { error: designDeleteError } = await supabaseServer
       .from('design_settings')
       .delete()
@@ -278,13 +341,13 @@ export async function DELETE(request, { params }) {
 
     if (designDeleteError) {
       console.error('Error deleting design settings:', designDeleteError);
-      return NextResponse.json(
-        { error: 'Failed to delete design settings' },
-        { status: 500 }
-      );
+      // Continue with deletion even if design settings cleanup fails
+      console.log('Continuing deletion process despite design settings deletion error');
+    } else {
+      console.log('Successfully deleted design settings');
     }
 
-    // Finally delete the event
+    // 4. Finally delete the event
     const { error: deleteError } = await supabaseServer
       .from('events')
       .delete()
@@ -299,6 +362,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
+    console.log('Successfully deleted event and all associated data');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error in DELETE:', error);

@@ -7,20 +7,18 @@
       "use": "@vercel/next"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/event/(.*)",
-      "dest": "/event/$1",
-      "continue": true
+      "source": "/event/:path*",
+      "destination": "/event/:path*"
     },
     {
-      "src": "/camera",
-      "dest": "/camera",
-      "continue": true
+      "source": "/camera",
+      "destination": "/camera"
     },
     {
-      "src": "/(.*)",
-      "dest": "/$1"
+      "source": "/:path*",
+      "destination": "/:path*"
     }
   ],
   "headers": [

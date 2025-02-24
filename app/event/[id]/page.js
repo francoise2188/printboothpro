@@ -66,13 +66,16 @@ export default function EventPage() {
           .from('design_settings')
           .select('landing_background')
           .eq('event_id', eventId)
-          .single();
+          .maybeSingle();
 
         if (!isMounted) return;
 
         if (designError) {
           console.error('Error fetching design settings:', designError.message);
-          throw designError;
+          // Don't throw error for missing design settings
+          if (!designError.message.includes('No rows returned')) {
+            throw designError;
+          }
         }
         
         if (designData?.landing_background) {

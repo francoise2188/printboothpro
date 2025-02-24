@@ -46,14 +46,17 @@ function HomeContent() {
           .from('design_settings')
           .select('landing_background')
           .eq('event_id', eventId)
-          .single();
+          .maybeSingle();
 
         console.log('📦 Design settings data:', data);
         console.log('🖼️ Background URL:', data?.landing_background);
 
         if (error) {
           console.error('❌ Error:', error);
-          return;
+          // Don't return/throw error if it's just that no settings exist
+          if (!error.message.includes('No rows returned')) {
+            return;
+          }
         }
         
         // Set the background URL to state
