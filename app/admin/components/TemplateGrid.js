@@ -97,13 +97,81 @@ export default function TemplateGrid({ selectedEventId }) {
     })));
   }, [template]);
 
+  const cleanupTemplateState = async () => {
+    if (!selectedEventId || !user) return;
+    
+    try {
+      console.log('Starting template cleanup...');
+      setLoading(true);
+      
+      // First, get all photos that are marked as in_template
+      const { data: templatePhotos, error: fetchError } = await supabase
+        .from('photos')
+        .select('*')
+        .eq('event_id', selectedEventId)
+        .eq('status', 'in_template')
+        .is('deleted_at', null);
+        
+      if (fetchError) throw fetchError;
+      
+      // Create a map to track positions and duplicates
+      const positionMap = new Map();
+      const duplicates = [];
+      
+      templatePhotos.forEach(photo => {
+        if (photo.template_position) {
+          if (positionMap.has(photo.template_position)) {
+            duplicates.push(photo.id);
+          } else {
+            positionMap.set(photo.template_position, photo.id);
+          }
+        }
+      });
+      
+      // Reset duplicates to pending status
+      if (duplicates.length > 0) {
+        const { error: updateError } = await supabase
+          .from('photos')
+          .update({
+            status: 'pending',
+            template_position: null
+          })
+          .in('id', duplicates);
+          
+        if (updateError) throw updateError;
+      }
+      
+      // Reset template state
+      setTemplate(Array(9).fill(null));
+      setProcessedPhotoIds(new Set());
+      setLoadedImages(new Set());
+      setLoading(false);
+      
+      console.log('Template cleanup completed');
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      setError('Failed to cleanup template state');
+      setLoading(false);
+    }
+  };
+
+  // Modify the existing useEffect for template processing
   useEffect(() => {
     const processTemplate = async () => {
       if (!user || !selectedEventId) {
+        console.log('Missing required data:', {
+          hasUser: !!user,
+          eventId: selectedEventId
+        });
         return;
       }
 
       try {
+        console.log('Processing template for event:', {
+          eventId: selectedEventId,
+          userId: user.id
+        });
+        
         // Get ALL photos for this event in a single query
         const { data: allPhotos, error } = await supabase
           .from('photos')
@@ -118,57 +186,78 @@ export default function TemplateGrid({ selectedEventId }) {
           return;
         }
 
+        // Log all pending photos for debugging
+        const pendingPhotos = allPhotos?.filter(p => p.status === 'pending') || [];
+        console.log('All pending photos:', pendingPhotos.map(p => ({
+          id: p.id,
+          created_at: p.created_at,
+          event_id: p.event_id
+        })));
+
+        console.log('Fetched photos:', {
+          total: allPhotos?.length,
+          pending: pendingPhotos.length,
+          inTemplate: allPhotos?.filter(p => p.status === 'in_template').length,
+          eventId: selectedEventId
+        });
+
         // Initialize empty template
         const newTemplate = Array(9).fill(null);
+        let needsCleanup = false;
 
         // First, place all in_template photos in their correct positions
         const inTemplatePhotos = allPhotos.filter(p => p.status === 'in_template');
         
-        // Sort by template_position to ensure proper order
-        inTemplatePhotos
-          .sort((a, b) => (a.template_position || 0) - (b.template_position || 0))
-          .forEach(photo => {
-            if (photo.template_position && photo.template_position <= 9) {
+        // Check for position conflicts
+        const positionMap = new Map();
+        inTemplatePhotos.forEach(photo => {
+          if (photo.template_position && photo.template_position <= 9) {
+            if (positionMap.has(photo.template_position)) {
+              needsCleanup = true;
+            } else {
+              positionMap.set(photo.template_position, photo);
               newTemplate[photo.template_position - 1] = photo;
             }
-          });
+          }
+        });
 
-        // Then, get pending photos that haven't been processed
-        const pendingPhotos = allPhotos.filter(p => 
-          p.status === 'pending' && 
-          !inTemplatePhotos.some(tp => tp.id === p.id)
-        );
+        // If we detected conflicts, trigger cleanup
+        if (needsCleanup) {
+          console.log('Position conflicts detected, triggering cleanup...');
+          await cleanupTemplateState();
+          return;
+        }
 
-        // Find first truly empty slot
+        // Find first empty slot
         const firstEmptySlot = newTemplate.findIndex(slot => slot === null);
 
-        // If we have empty slots and pending photos, process one
+        console.log('Template status:', {
+          firstEmptySlot,
+          pendingPhotosCount: pendingPhotos.length,
+          templateState: newTemplate.map((p, i) => ({
+            position: i + 1,
+            hasPhoto: !!p,
+            photoId: p?.id
+          }))
+        });
+
+        // If we have an empty slot and pending photos, process one
         if (firstEmptySlot !== -1 && pendingPhotos.length > 0) {
           const photoToMove = pendingPhotos[0];
-
-          // Double check this slot is really empty in the database
-          const { data: slotCheck } = await supabase
-            .from('photos')
-            .select('id, status')
-            .eq('event_id', selectedEventId)
-            .eq('template_position', firstEmptySlot + 1)
-            .neq('status', 'deleted')
-            .is('deleted_at', null);
-
-          if (slotCheck?.length > 0) {
-            console.log('Slot already taken in database, skipping update');
-            return;
-          }
-
-          console.log('Processing photo:', {
+          console.log('Processing pending photo:', {
             photoId: photoToMove.id,
             targetSlot: firstEmptySlot + 1,
-            currentTemplate: newTemplate.map((p, i) => ({
-              slot: i + 1,
-              photoId: p?.id,
-              status: p?.status
-            }))
+            eventId: photoToMove.event_id
           });
+
+          // Verify event ID matches
+          if (photoToMove.event_id !== selectedEventId) {
+            console.error('Event ID mismatch:', {
+              photoEventId: photoToMove.event_id,
+              selectedEventId
+            });
+            return;
+          }
 
           // Update the photo status in database
           const { error: updateError } = await supabase
@@ -178,7 +267,8 @@ export default function TemplateGrid({ selectedEventId }) {
               template_position: firstEmptySlot + 1
             })
             .eq('id', photoToMove.id)
-            .eq('status', 'pending');
+            .eq('status', 'pending')
+            .eq('event_id', selectedEventId);
 
           if (updateError) {
             console.error('Error updating photo status:', updateError);
@@ -192,15 +282,10 @@ export default function TemplateGrid({ selectedEventId }) {
             template_position: firstEmptySlot + 1
           };
 
-          console.log('Successfully added photo:', {
+          console.log('Successfully added photo to template:', {
             photoId: photoToMove.id,
-            slot: firstEmptySlot + 1,
-            template: newTemplate.map((p, i) => ({
-              slot: i + 1,
-              photoId: p?.id,
-              status: p?.status,
-              position: p?.template_position
-            }))
+            position: firstEmptySlot + 1,
+            eventId: selectedEventId
           });
         }
 
@@ -209,6 +294,7 @@ export default function TemplateGrid({ selectedEventId }) {
           const currentIds = current.map(p => p?.id).join(',');
           const newIds = newTemplate.map(p => p?.id).join(',');
           if (currentIds !== newIds) {
+            console.log('Updating template with new state');
             return newTemplate;
           }
           return current;
@@ -249,24 +335,65 @@ export default function TemplateGrid({ selectedEventId }) {
 
   const loadRecentPrints = async () => {
     try {
-      console.log('Loading recent prints...');
+      console.log('Loading recent prints...', {
+        userId: user?.id,
+        eventId: selectedEventId
+      });
       
+      // Get all recently printed photos
       const { data: recentPhotos, error } = await supabase
         .from('photos')
         .select('*')
         .eq('user_id', user.id)
-        .eq('status', 'printed')
+        .eq('print_status', 'printed')  // Look specifically for printed status
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading recent prints:', error);
+        throw error;
+      }
 
-      setRecentPrints(recentPhotos || []);
+      console.log('Found recent prints:', {
+        count: recentPhotos?.length,
+        photos: recentPhotos?.map(p => ({
+          id: p.id,
+          status: p.status,
+          print_status: p.print_status
+        }))
+      });
+
+      if (!recentPhotos || recentPhotos.length === 0) {
+        setRecentPrints([]);
+        toast.error('No recent prints found');
+      } else {
+        setRecentPrints(recentPhotos);
+      }
+
       setIsReprintOpen(true);
-      console.log('Loaded recent prints:', recentPhotos);
+      
     } catch (error) {
       console.error('Error loading recent prints:', error);
       toast.error('Failed to load recent prints');
+    }
+  };
+
+  // Add a function to check print status
+  const checkPrintStatus = async (photoIds) => {
+    try {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('id, print_status, status')
+        .in('id', photoIds);
+
+      if (error) throw error;
+
+      console.log('Print status check:', data);
+      return data;
+    } catch (error) {
+      console.error('Error checking print status:', error);
+      return null;
     }
   };
 
@@ -308,7 +435,27 @@ export default function TemplateGrid({ selectedEventId }) {
   }, [selectedEventId]);
 
   const monitorPrintJob = useCallback(async (jobId, printer) => {
+    const MAX_CHECKS = 5;
+    let checkCount = parseInt(localStorage.getItem(`print_check_${jobId}`) || '0');
+    
+    if (checkCount >= MAX_CHECKS) {
+      console.log('Print job monitoring completed after', MAX_CHECKS, 'checks');
+      setPrintStatus('idle');
+      setIsPrinting(false);
+      setCurrentPrintJob(null);
+      localStorage.removeItem(`print_check_${jobId}`);
+      toast.success('Print job completed - check your printer', {
+        id: `print-status-${jobId}`,
+        duration: 3000
+      });
+      clearProcessedPhotos();
+      return;
+    }
+
     try {
+      checkCount++;
+      localStorage.setItem(`print_check_${jobId}`, checkCount.toString());
+
       // Get the API key from localStorage
       const userSettings = JSON.parse(localStorage.getItem('userSettings') || '{}');
       const apiKey = userSettings.printnode_api_key;
@@ -352,30 +499,12 @@ export default function TemplateGrid({ selectedEventId }) {
       const data = await response.json();
       console.log('Print job status:', data);
 
-      // Add a counter to localStorage to track how many times we've checked this job
-      const checkCount = parseInt(localStorage.getItem(`print_check_${jobId}`) || '0') + 1;
-      localStorage.setItem(`print_check_${jobId}`, checkCount.toString());
-
       // Update toast message every 3 checks (6 seconds)
       if (checkCount % 3 === 0) {
         toast.loading('Print job is processing...', {
           id: `print-status-${jobId}`,
           duration: 3000
         });
-      }
-
-      // If we've checked more than 15 times (30 seconds), assume it's completed
-      if (checkCount > 15) {
-        console.log('Print job timeout - assuming cancelled/completed');
-        setPrintStatus('idle');
-        setIsPrinting(false);
-        setCurrentPrintJob(null);
-        localStorage.removeItem(`print_check_${jobId}`);
-        toast.error('Print job timed out - please check if it printed', {
-          id: `print-status-${jobId}`
-        });
-        clearProcessedPhotos();
-        return;
       }
 
       // Handle different status types
@@ -413,10 +542,11 @@ export default function TemplateGrid({ selectedEventId }) {
             status: data.status,
             printer: data.printer,
             state: data.printerState,
-            checkCount
+            checkCount,
+            maxChecks: MAX_CHECKS
           });
           setPrintStatus('printing');
-          // Add a small delay between checks
+          // Reduced delay between checks to 2 seconds
           setTimeout(() => monitorPrintJob(jobId, printer), 2000);
           break;
           
@@ -445,7 +575,7 @@ export default function TemplateGrid({ selectedEventId }) {
   }, [clearProcessedPhotos]);
 
   const handlePrint = useCallback(async () => {
-    if (isPrinting) return; // Prevent multiple clicks
+    if (isPrinting) return;
 
     try {
       // Get settings at the start
@@ -460,34 +590,35 @@ export default function TemplateGrid({ selectedEventId }) {
         return;
       }
 
-      setIsPrinting(true);
-      setPrintStatus('printing');
-
-      const currentPhotoIds = template
+      const photosToUpdate = template
         .filter(photo => photo !== null)
-        .map(photo => photo.id);
+        .map(photo => ({
+          id: photo.id,
+          url: photo.url
+        }));
 
-      if (currentPhotoIds.length === 0) {
+      if (photosToUpdate.length === 0) {
         toast.error('Template is empty - add some photos first');
-        setIsPrinting(false);
-        setPrintStatus('idle');
         return;
       }
 
-      // Update database status
-      const { error: dbError } = await supabase
+      setIsPrinting(true);
+      setPrintStatus('printing');
+
+      // Update print status before printing
+      const { error: statusError } = await supabase
         .from('photos')
         .update({
-          status: 'printing',
-          print_status: 'printing'
+          print_status: 'printing',
+          status: 'printing'
         })
-        .in('id', currentPhotoIds)
-        .eq('user_id', user.id);
+        .in('id', photosToUpdate.map(p => p.id));
 
-      if (dbError) {
+      if (statusError) {
+        console.error('Error updating print status:', statusError);
+        toast.error('Failed to update photo status');
         setIsPrinting(false);
         setPrintStatus('idle');
-        toast.error('Failed to update photo status');
         return;
       }
 
@@ -511,112 +642,136 @@ export default function TemplateGrid({ selectedEventId }) {
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Load and draw images
-      const loadImagePromises = template.map((photo, index) => {
-        if (!photo) return Promise.resolve();
-
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          
-          img.onload = () => {
-            // Calculate position in grid
-            const row = Math.floor(index / GRID_SIZE);
-            const col = index % GRID_SIZE;
+      try {
+        // Load and draw images
+        const loadImagePromises = photosToUpdate.map((photo, index) => {
+          return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
             
-            // Calculate exact position for this cell
-            const cellX = col * CELL_SIZE_PX;
-            const cellY = row * CELL_SIZE_PX;
+            img.onload = () => {
+              // Calculate position in grid
+              const row = Math.floor(index / GRID_SIZE);
+              const col = index % GRID_SIZE;
+              
+              // Calculate exact position for this cell
+              const cellX = col * CELL_SIZE_PX;
+              const cellY = row * CELL_SIZE_PX;
+              
+              // Calculate photo position within cell (centered)
+              const photoX = cellX + ((CELL_SIZE_PX - PHOTO_SIZE_PX) / 2);
+              const photoY = cellY + ((CELL_SIZE_PX - PHOTO_SIZE_PX) / 2);
+              
+              // Draw photo at exact size
+              ctx.drawImage(img, photoX, photoY, PHOTO_SIZE_PX, PHOTO_SIZE_PX);
+              
+              // Add URL text directly to canvas
+              ctx.save();
+              ctx.font = `${32}px Arial`;
+              ctx.fillStyle = 'black';
+              ctx.translate(photoX + PHOTO_SIZE_PX/2, photoY + PHOTO_SIZE_PX + 30);
+              ctx.rotate(Math.PI);  // Rotate 180 degrees
+              ctx.textAlign = 'center';
+              ctx.fillText(websiteUrl, 0, 0);
+              ctx.restore();
+              
+              resolve();
+            };
             
-            // Calculate photo position within cell (centered)
-            const photoX = cellX + ((CELL_SIZE_PX - PHOTO_SIZE_PX) / 2);
-            const photoY = cellY + ((CELL_SIZE_PX - PHOTO_SIZE_PX) / 2);
-            
-            // Draw photo at exact size
-            ctx.drawImage(img, photoX, photoY, PHOTO_SIZE_PX, PHOTO_SIZE_PX);
-            
-            // Add URL text directly to canvas
-            ctx.save();
-            ctx.font = `${32}px Arial`;  // Increased from 24px to 32px (about 10.5pt at 300 DPI)
-            ctx.fillStyle = 'black';
-            ctx.translate(photoX + PHOTO_SIZE_PX/2, photoY + PHOTO_SIZE_PX + 30);
-            ctx.rotate(Math.PI);  // Rotate 180 degrees
-            ctx.textAlign = 'center';
-            ctx.fillText(websiteUrl, 0, 0);
-            ctx.restore();
-            
-            resolve();
-          };
-          
-          img.onerror = reject;
-          img.src = photo.url;
+            img.onerror = reject;
+            img.src = photo.url;
+          });
         });
-      });
 
-      // Wait for all images to be drawn
-      await Promise.all(loadImagePromises);
+        // Wait for all images to be drawn
+        await Promise.all(loadImagePromises);
 
-      // Create PDF
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'in',
-        format: 'letter'
-      });
+        // Create PDF
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'in',
+          format: 'letter'
+        });
 
-      // Calculate position to center grid on letter page
-      const PAGE_WIDTH = 8.5;
-      const PAGE_HEIGHT = 11;
-      const GRID_WIDTH_INCHES = CELL_SIZE_INCHES * GRID_SIZE;
-      const X_OFFSET = (PAGE_WIDTH - GRID_WIDTH_INCHES) / 2;
-      const Y_OFFSET = (PAGE_HEIGHT - GRID_WIDTH_INCHES) / 2;
+        // Calculate position to center grid on letter page
+        const PAGE_WIDTH = 8.5;
+        const PAGE_HEIGHT = 11;
+        const GRID_WIDTH_INCHES = CELL_SIZE_INCHES * GRID_SIZE;
+        const X_OFFSET = (PAGE_WIDTH - GRID_WIDTH_INCHES) / 2;
+        const Y_OFFSET = (PAGE_HEIGHT - GRID_WIDTH_INCHES) / 2;
 
-      // Convert canvas to JPEG
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        // Convert canvas to JPEG
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
-      // Add complete grid (with URLs) to PDF
-      pdf.addImage(imgData, 'JPEG', X_OFFSET, Y_OFFSET, GRID_WIDTH_INCHES, GRID_WIDTH_INCHES);
+        // Add complete grid (with URLs) to PDF
+        pdf.addImage(imgData, 'JPEG', X_OFFSET, Y_OFFSET, GRID_WIDTH_INCHES, GRID_WIDTH_INCHES);
 
-      // Get PDF as base64
-      const pdfData = pdf.output('datauristring');
+        // Get PDF as base64
+        const pdfData = pdf.output('datauristring');
 
-      // Create and send print job
-      const response = await fetch('/api/print', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-PrintNode-API-Key': userSettings.printnode_api_key
-        },
-        body: JSON.stringify({
-          content: pdfData,
-          printerId: parseInt(selectedPrinter),
-          title: `PrintBooth Job - ${new Date().toISOString()}`
-        })
-      });
+        // Send to printer
+        const response = await fetch('/api/print', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-PrintNode-API-Key': userSettings.printnode_api_key
+          },
+          body: JSON.stringify({
+            content: pdfData,
+            printerId: parseInt(selectedPrinter),
+            title: `PrintBooth Job - ${new Date().toISOString()}`
+          })
+        });
 
-      if (!response.ok) {
-        setIsPrinting(false);
-        setPrintStatus('idle');
-        const errorData = await response.text();
-        throw new Error(`Print API Error: ${response.status} - ${errorData}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Print failed: ${errorText}`);
+        }
+
+        const printData = await response.json();
+        
+        if (!printData.success) {
+          throw new Error(printData.message || 'Print failed');
+        }
+
+        // Update photos to printed status
+        const { error: finalUpdateError } = await supabase
+          .from('photos')
+          .update({
+            print_status: 'printed',
+            status: 'printed'
+          })
+          .in('id', photosToUpdate.map(p => p.id));
+
+        if (finalUpdateError) {
+          console.error('Error updating final print status:', finalUpdateError);
+        }
+
+        toast.success('Print job sent successfully!');
+        setCurrentPrintJob(printData.jobId);
+        
+        // Start monitoring the print job
+        setTimeout(() => {
+          monitorPrintJob(printData.jobId, selectedPrinter);
+        }, 3000);
+
+      } catch (error) {
+        console.error('Print processing error:', error);
+        // Revert photos to previous status
+        const { error: revertError } = await supabase
+          .from('photos')
+          .update({
+            print_status: 'pending',
+            status: 'in_template'
+          })
+          .in('id', photosToUpdate.map(p => p.id));
+
+        if (revertError) {
+          console.error('Error reverting photo status:', revertError);
+        }
+        
+        throw error;
       }
-
-      const responseData = await response.json();
-      console.log('Print job creation response:', responseData);
-      
-      if (!responseData.success || !responseData.jobId) {
-        setIsPrinting(false);
-        setPrintStatus('idle');
-        throw new Error(responseData.error || 'Failed to create print job');
-      }
-
-      setCurrentPrintJob(responseData.jobId);
-      toast.success(responseData.message || 'Print job sent successfully!');
-      
-      // Add a longer delay before starting monitoring to allow the job to register
-      console.log('Waiting 3 seconds before starting job monitoring...');
-      setTimeout(() => {
-        monitorPrintJob(responseData.jobId, selectedPrinter);
-      }, 3000);
 
     } catch (error) {
       console.error('Print error:', error);
@@ -1195,10 +1350,10 @@ export default function TemplateGrid({ selectedEventId }) {
         </div>
         <div className={styles.controls}>
           <button
-            onClick={loadRecentPrints}
+            onClick={cleanupTemplateState}
             className={styles.secondaryButton}
           >
-            Reprints
+            Reset Template
           </button>
           <div className={styles.printerControls}>
             <select
