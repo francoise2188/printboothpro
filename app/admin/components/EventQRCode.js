@@ -13,8 +13,11 @@ export default function EventQRCode({ eventId, eventName }) {
 
   useEffect(() => {
     setMounted(true);
-    // Use the public site URL for QR codes
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    // Use localhost:3000 for development, otherwise use the production URL
+    const baseUrl = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:3000'
+      : process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    
     // Create the event URL without any encoding
     const newEventUrl = `${baseUrl}/event/${eventId}`;
     console.log('Generated Event URL:', newEventUrl);

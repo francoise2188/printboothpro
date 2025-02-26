@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
 
 // Add these sharing functions at the top of your file
 const shareToInstagram = async (photoUrl) => {
@@ -201,39 +202,119 @@ export default function CameraComponent() {
   };
 
   const takePhoto = () => {
-    if (videoRef.current) {
-      const video = videoRef.current;
-      const canvas = document.createElement('canvas');
-      canvas.width = 600;
-      canvas.height = 600;
-      
-      const ctx = canvas.getContext('2d');
-      const size = Math.min(video.videoWidth, video.videoHeight);
-      const startX = (video.videoWidth - size) / 2;
-      const startY = (video.videoHeight - size) / 2;
-      
-      ctx.drawImage(
-        video,
-        startX, startY, size, size,
-        0, 0, canvas.width, canvas.height
-      );
+    return new Promise((resolve, reject) => {
+      if (videoRef.current) {
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = 1080;  // 3:4 ratio for portrait orientation
+        canvas.height = 1440;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // Calculate scaling to fit the video while maintaining aspect ratio
+        const videoAspect = video.videoWidth / video.videoHeight;
+        const canvasAspect = canvas.width / canvas.height;
+        
+        let drawWidth = canvas.width;
+        let drawHeight = canvas.height;
+        let offsetX = 0;
+        let offsetY = 0;
+        
+        if (videoAspect > canvasAspect) {
+          // Video is wider than canvas
+          drawWidth = canvas.height * videoAspect;
+          offsetX = -(drawWidth - canvas.width) / 2;
+        } else {
+          // Video is taller than canvas
+          drawHeight = canvas.width / videoAspect;
+          offsetY = -(drawHeight - canvas.height) / 2;
+        }
+        
+        // Draw the video frame
+        ctx.drawImage(
+          video,
+          offsetX, offsetY, drawWidth, drawHeight
+        );
 
-      setPhoto(canvas.toDataURL('image/jpeg', 0.95));
-    }
+        // If we have an overlay URL, load and draw it
+        if (overlayUrl) {
+          console.log('🖼️ Loading overlay image:', overlayUrl);
+          const overlayImage = new Image();
+          overlayImage.crossOrigin = 'anonymous';
+          
+          overlayImage.onload = () => {
+            console.log('✅ Overlay loaded successfully');
+            
+            // Calculate the aspect ratio of the overlay image
+            const overlayAspect = overlayImage.width / overlayImage.height;
+            const canvasAspect = canvas.width / canvas.height;
+            
+            // Calculate dimensions while maintaining aspect ratio
+            let overlayWidth, overlayHeight;
+            
+            if (overlayAspect > canvasAspect) {
+              // Overlay is wider than canvas
+              overlayWidth = canvas.width * 0.9;
+              overlayHeight = overlayWidth / overlayAspect;
+            } else {
+              // Overlay is taller than canvas
+              overlayHeight = canvas.height * 0.9;
+              overlayWidth = overlayHeight * overlayAspect;
+            }
+            
+            // Center the overlay
+            const overlayX = (canvas.width - overlayWidth) / 2;
+            const overlayY = (canvas.height - overlayHeight) / 2;
+            
+            ctx.drawImage(
+              overlayImage,
+              overlayX,
+              overlayY,
+              overlayWidth,
+              overlayHeight
+            );
+            const photoData = canvas.toDataURL('image/jpeg', 0.95);
+            setPhoto(photoData);
+            resolve(photoData);
+          };
+          
+          overlayImage.onerror = (error) => {
+            console.error('❌ Failed to load overlay:', error);
+            // Still save the photo without overlay
+            const photoData = canvas.toDataURL('image/jpeg', 0.95);
+            setPhoto(photoData);
+            resolve(photoData);
+          };
+          
+          overlayImage.src = overlayUrl;
+        } else {
+          const photoData = canvas.toDataURL('image/jpeg', 0.95);
+          setPhoto(photoData);
+          resolve(photoData);
+        }
+      } else {
+        reject(new Error('No video reference available'));
+      }
+    });
   };
 
   const startCountdown = () => {
     let count = 3;
     setCountdownNumber(count);
 
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
       count--;
       if (count > 0) {
         setCountdownNumber(count);
       } else {
         clearInterval(timer);
         setCountdownNumber(null);
-        takePhoto();
+        try {
+          await takePhoto();
+        } catch (error) {
+          console.error('Failed to take photo:', error);
+          toast.error('Failed to take photo. Please try again.');
+        }
       }
     }, 1000);
   };
@@ -388,45 +469,48 @@ export default function CameraComponent() {
             style={{
               width: '100%',
               height: '100%',
-              objectFit: 'cover'
+              objectFit: 'contain'
             }}
           />
         ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover rounded-xl"
-            style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
-          />
-        )}
-        {overlayUrl && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-            zIndex: 10
-          }}>
-            <img
-              src={overlayUrl}
-              alt="Frame overlay"
-              crossOrigin="anonymous"
-              style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                pointerEvents: 'none'
-              }}
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full object-cover rounded-xl"
+              style={{ transform: facingMode === 'user' ? 'scaleX(-1)' : 'none' }}
             />
-          </div>
+            {overlayUrl && !photo && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                zIndex: 10
+              }}>
+                <img
+                  src={overlayUrl}
+                  alt="Frame overlay"
+                  crossOrigin="anonymous"
+                  style={{
+                    maxWidth: '90%',
+                    maxHeight: '90%',
+                    width: 'auto',
+                    height: 'auto',
+                    objectFit: 'contain',
+                    pointerEvents: 'none'
+                  }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 

@@ -143,6 +143,14 @@ export default function EventPage() {
         <img
           src={backgroundUrl}
           alt="Event Background"
+          onError={(e) => {
+            console.error('Error loading background image:', e);
+            console.log('Attempted URL:', backgroundUrl);
+            setError('Unable to load background image');
+          }}
+          onLoad={() => {
+            console.log('Background image loaded successfully');
+          }}
           style={{
             position: 'absolute',
             height: '102vh',

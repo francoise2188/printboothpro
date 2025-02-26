@@ -273,38 +273,22 @@ const EventDetailsPage = ({ params }) => {
 
         console.log('Landing image uploaded successfully');
 
-        // Get the public URL using the correct path
+        // Get the public URL
         const { data } = supabase.storage
           .from('designs')
           .getPublicUrl(landingFileName);
 
-        if (!data || !data.publicUrl) {
-          throw new Error('Failed to get public URL for uploaded image');
-        }
-
-        console.log('Generated public URL:', data.publicUrl);
-        
         landingBackgroundUrl = data.publicUrl;
         designSettingsChanged = true;
-
-        // Verify the URL is accessible
-        try {
-          const response = await fetch(data.publicUrl, { method: 'HEAD' });
-          if (!response.ok) {
-            console.error('URL verification failed:', response.status);
-            throw new Error('Unable to verify image URL accessibility');
-          }
-          console.log('URL verified successfully');
-        } catch (error) {
-          console.error('URL verification error:', error);
-          throw new Error('Failed to verify image URL accessibility');
-        }
       }
 
       if (cameraOverlay) {
         const timestamp = Date.now();
         const overlayFileName = `events/${id}/overlay_${timestamp}`;
         
+        console.log('Starting frame overlay upload...', overlayFileName);
+        
+        // Upload the frame overlay to Supabase storage
         const { data: overlayData, error: overlayError } = await supabase.storage
           .from('designs')
           .upload(overlayFileName, cameraOverlay, {
@@ -312,13 +296,19 @@ const EventDetailsPage = ({ params }) => {
             upsert: true
           });
 
-        if (overlayError) throw new Error(`Overlay upload failed: ${overlayError.message}`);
+        if (overlayError) {
+          console.error('Frame overlay upload error:', overlayError);
+          throw new Error(`Frame overlay upload failed: ${overlayError.message}`);
+        }
 
-        const { data: { publicUrl } } = supabase.storage
+        console.log('Frame overlay uploaded successfully');
+
+        // Get the public URL for the frame overlay
+        const { data: overlayUrl } = supabase.storage
           .from('designs')
           .getPublicUrl(overlayFileName);
-        
-        frameOverlayUrl = publicUrl;
+
+        frameOverlayUrl = overlayUrl.publicUrl;
         designSettingsChanged = true;
       }
 
