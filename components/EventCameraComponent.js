@@ -167,61 +167,17 @@ export default function EventCameraComponent({ eventId }) {
         tracks.forEach(track => track.stop());
       }
 
-      // First, let's log what devices are available
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cameras = devices.filter(device => device.kind === 'videoinput');
-      console.log('📸 Available cameras:', cameras);
-
-      // Try to get the widest possible view
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
-          width: { min: 320, ideal: 640, max: 1920 },
-          height: { min: 240, ideal: 480, max: 1080 }
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
         },
         audio: false
       });
-
-      // Get the video track and log its capabilities
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        console.log('📹 Video track:', videoTrack.label);
-        console.log('⚙️ Track settings:', videoTrack.getSettings());
-        console.log('🎛️ Track constraints:', videoTrack.getConstraints());
-        
-        const capabilities = videoTrack.getCapabilities();
-        console.log('✨ Camera capabilities:', capabilities);
-
-        // If zoom is available, try to set it to minimum
-        if (capabilities?.zoom) {
-          console.log('🔍 Zoom range:', capabilities.zoom.min, 'to', capabilities.zoom.max);
-          try {
-            await videoTrack.applyConstraints({
-              advanced: [{ zoom: capabilities.zoom.min }]
-            });
-            console.log('✅ Applied minimum zoom:', capabilities.zoom.min);
-          } catch (error) {
-            console.log('❌ Could not apply zoom:', error);
-          }
-        } else {
-          console.log('ℹ️ No zoom control available');
-        }
-
-        // Log final settings after all constraints are applied
-        console.log('🎯 Final video settings:', videoTrack.getSettings());
-      }
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Log video element properties once it's loaded
-        videoRef.current.onloadedmetadata = () => {
-          console.log('📺 Video element size:', {
-            videoWidth: videoRef.current.videoWidth,
-            videoHeight: videoRef.current.videoHeight,
-            clientWidth: videoRef.current.clientWidth,
-            clientHeight: videoRef.current.clientHeight
-          });
-        };
       }
     } catch (error) {
       console.error('❌ Camera error:', error);
