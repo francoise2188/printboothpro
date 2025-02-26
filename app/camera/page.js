@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 
-export default function CameraTest() {
+function CameraContent() {
   const videoRef = useRef(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [overlayUrl, setOverlayUrl] = useState('');
@@ -121,5 +121,13 @@ export default function CameraTest() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CameraTest() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <CameraContent />
+    </Suspense>
   );
 }
