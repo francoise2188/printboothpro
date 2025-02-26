@@ -256,6 +256,9 @@ const EventDetailsPage = ({ params }) => {
         const timestamp = Date.now();
         const landingFileName = `events/${id}/landing_${timestamp}`;
         
+        console.log('Starting landing image upload...', landingFileName);
+        
+        // Upload the file to Supabase storage
         const { data: landingData, error: landingError } = await supabase.storage
           .from('designs')
           .upload(landingFileName, landingPageImage, {
@@ -263,14 +266,39 @@ const EventDetailsPage = ({ params }) => {
             upsert: true
           });
 
-        if (landingError) throw new Error(`Landing image upload failed: ${landingError.message}`);
+        if (landingError) {
+          console.error('Landing image upload error:', landingError);
+          throw new Error(`Landing image upload failed: ${landingError.message}`);
+        }
 
-        const { data: { publicUrl } } = supabase.storage
+        console.log('Landing image uploaded successfully');
+
+        // Get the public URL using the correct path
+        const { data } = supabase.storage
           .from('designs')
           .getPublicUrl(landingFileName);
+
+        if (!data || !data.publicUrl) {
+          throw new Error('Failed to get public URL for uploaded image');
+        }
+
+        console.log('Generated public URL:', data.publicUrl);
         
-        landingBackgroundUrl = publicUrl;
+        landingBackgroundUrl = data.publicUrl;
         designSettingsChanged = true;
+
+        // Verify the URL is accessible
+        try {
+          const response = await fetch(data.publicUrl, { method: 'HEAD' });
+          if (!response.ok) {
+            console.error('URL verification failed:', response.status);
+            throw new Error('Unable to verify image URL accessibility');
+          }
+          console.log('URL verified successfully');
+        } catch (error) {
+          console.error('URL verification error:', error);
+          throw new Error('Failed to verify image URL accessibility');
+        }
       }
 
       if (cameraOverlay) {
@@ -296,23 +324,37 @@ const EventDetailsPage = ({ params }) => {
 
       // Step 3: Update design settings only if files were uploaded
       if (designSettingsChanged) {
+        console.log('Updating design settings with URLs:', {
+          landing_background: landingBackgroundUrl,
+          frame_overlay: frameOverlayUrl
+        });
+
         const { data: existingSettings } = await supabase
           .from('design_settings')
           .select('*')
           .eq('event_id', id)
           .maybeSingle();
 
+        const designSettingsPayload = {
+          id: existingSettings?.id,
+          event_id: id,
+          landing_background: landingBackgroundUrl,
+          frame_overlay: frameOverlayUrl,
+          updated_at: new Date().toISOString()
+        };
+
+        console.log('Design settings payload:', designSettingsPayload);
+
         const { error: designError } = await supabase
           .from('design_settings')
-          .upsert({
-            id: existingSettings?.id,
-            event_id: id,
-            landing_background: landingBackgroundUrl,
-            frame_overlay: frameOverlayUrl,
-            updated_at: new Date().toISOString()
-          });
+          .upsert(designSettingsPayload);
 
-        if (designError) throw new Error(`Design settings update failed: ${designError.message}`);
+        if (designError) {
+          console.error('Design settings update error:', designError);
+          throw new Error(`Design settings update failed: ${designError.message}`);
+        }
+
+        console.log('Design settings updated successfully');
       }
 
       // Show success message and refresh
