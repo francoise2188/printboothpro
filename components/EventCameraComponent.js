@@ -152,9 +152,8 @@ export default function EventCameraComponent({ eventId }) {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 640, ideal: 1280, max: 1080 },
-          aspectRatio: { ideal: 1 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         },
         audio: false
       });
@@ -192,7 +191,7 @@ export default function EventCameraComponent({ eventId }) {
   return (
     <div className="min-h-screen bg-black p-4">
       {/* Camera Container */}
-      <div className="relative w-full max-w-md mx-auto aspect-square">
+      <div className="relative w-full max-w-md mx-auto aspect-square overflow-hidden">
         {photo ? (
           <img
             src={photo}
@@ -205,7 +204,7 @@ export default function EventCameraComponent({ eventId }) {
             autoPlay
             playsInline
             muted
-            className="absolute inset-0 w-full h-full object-cover rounded-xl"
+            className="absolute inset-0 w-full h-full object-contain rounded-xl"
           />
         )}
         
