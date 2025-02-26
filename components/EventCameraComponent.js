@@ -149,17 +149,29 @@ export default function EventCameraComponent({ eventId }) {
         tracks.forEach(track => track.stop());
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const constraints = {
         video: {
           facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
         },
         audio: false
-      });
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          videoRef.current.onloadedmetadata = () => {
+            resolve();
+          };
+        });
+        
+        // Get the actual track settings
+        const track = stream.getVideoTracks()[0];
+        console.log('Camera settings:', track.getSettings());
       }
     } catch (error) {
       console.error('Camera error:', error);
@@ -191,7 +203,7 @@ export default function EventCameraComponent({ eventId }) {
   return (
     <div className="min-h-screen bg-black p-4">
       {/* Camera Container */}
-      <div className="relative w-full max-w-md mx-auto aspect-square overflow-hidden">
+      <div className="relative w-full max-w-md mx-auto aspect-square">
         {photo ? (
           <img
             src={photo}
@@ -199,13 +211,19 @@ export default function EventCameraComponent({ eventId }) {
             className="absolute inset-0 w-full h-full object-cover rounded-xl"
           />
         ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-contain rounded-xl"
-          />
+          <div className="relative w-full pb-[100%]">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="absolute inset-0 w-full h-full object-contain rounded-xl"
+              style={{
+                transform: 'scale(1.0)',
+                objectFit: 'contain'
+              }}
+            />
+          </div>
         )}
         
         {/* Frame Overlay */}
