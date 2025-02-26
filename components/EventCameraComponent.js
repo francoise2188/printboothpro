@@ -152,8 +152,9 @@ export default function EventCameraComponent({ eventId }) {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 640, ideal: 1280, max: 1080 },
+          aspectRatio: { ideal: 1 }
         },
         audio: false
       });
