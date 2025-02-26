@@ -124,18 +124,36 @@ export default function EventCameraComponent({ eventId }) {
     if (videoRef.current) {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
-      canvas.width = 600;
-      canvas.height = 600;
+      
+      // Use a fixed size that matches common photo booth dimensions
+      canvas.width = 1080;  // 3:4 ratio for portrait orientation
+      canvas.height = 1440;
       
       const ctx = canvas.getContext('2d');
-      const size = Math.min(video.videoWidth, video.videoHeight);
-      const startX = (video.videoWidth - size) / 2;
-      const startY = (video.videoHeight - size) / 2;
       
+      // Calculate scaling to fit the video while maintaining aspect ratio
+      const videoAspect = video.videoWidth / video.videoHeight;
+      const canvasAspect = canvas.width / canvas.height;
+      
+      let drawWidth = canvas.width;
+      let drawHeight = canvas.height;
+      let offsetX = 0;
+      let offsetY = 0;
+      
+      if (videoAspect > canvasAspect) {
+        // Video is wider than canvas
+        drawWidth = canvas.height * videoAspect;
+        offsetX = -(drawWidth - canvas.width) / 2;
+      } else {
+        // Video is taller than canvas
+        drawHeight = canvas.width / videoAspect;
+        offsetY = -(drawHeight - canvas.height) / 2;
+      }
+      
+      // Draw the video frame
       ctx.drawImage(
         video,
-        startX, startY, size, size,
-        0, 0, canvas.width, canvas.height
+        offsetX, offsetY, drawWidth, drawHeight
       );
 
       setPhoto(canvas.toDataURL('image/jpeg', 0.95));
@@ -149,20 +167,64 @@ export default function EventCameraComponent({ eventId }) {
         tracks.forEach(track => track.stop());
       }
 
+      // First, let's log what devices are available
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter(device => device.kind === 'videoinput');
+      console.log('📸 Available cameras:', cameras);
+
+      // Try to get the widest possible view
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          width: { min: 320, ideal: 640, max: 1920 },
+          height: { min: 240, ideal: 480, max: 1080 }
         },
         audio: false
       });
+
+      // Get the video track and log its capabilities
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        console.log('📹 Video track:', videoTrack.label);
+        console.log('⚙️ Track settings:', videoTrack.getSettings());
+        console.log('🎛️ Track constraints:', videoTrack.getConstraints());
+        
+        const capabilities = videoTrack.getCapabilities();
+        console.log('✨ Camera capabilities:', capabilities);
+
+        // If zoom is available, try to set it to minimum
+        if (capabilities?.zoom) {
+          console.log('🔍 Zoom range:', capabilities.zoom.min, 'to', capabilities.zoom.max);
+          try {
+            await videoTrack.applyConstraints({
+              advanced: [{ zoom: capabilities.zoom.min }]
+            });
+            console.log('✅ Applied minimum zoom:', capabilities.zoom.min);
+          } catch (error) {
+            console.log('❌ Could not apply zoom:', error);
+          }
+        } else {
+          console.log('ℹ️ No zoom control available');
+        }
+
+        // Log final settings after all constraints are applied
+        console.log('🎯 Final video settings:', videoTrack.getSettings());
+      }
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Log video element properties once it's loaded
+        videoRef.current.onloadedmetadata = () => {
+          console.log('📺 Video element size:', {
+            videoWidth: videoRef.current.videoWidth,
+            videoHeight: videoRef.current.videoHeight,
+            clientWidth: videoRef.current.clientWidth,
+            clientHeight: videoRef.current.clientHeight
+          });
+        };
       }
     } catch (error) {
-      console.error('Camera error:', error);
+      console.error('❌ Camera error:', error);
       toast.error('Failed to start camera');
     }
   };
@@ -191,21 +253,28 @@ export default function EventCameraComponent({ eventId }) {
   return (
     <div className="min-h-screen bg-black p-4">
       {/* Camera Container */}
-      <div className="relative w-full max-w-md mx-auto aspect-square">
+      <div className="relative w-full max-w-md mx-auto aspect-[3/4]">
         {photo ? (
           <img
             src={photo}
             alt="Captured photo"
-            className="absolute inset-0 w-full h-full object-cover rounded-xl"
+            className="absolute inset-0 w-full h-full object-contain rounded-xl"
           />
         ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover rounded-xl"
-          />
+          <div className="absolute inset-0 overflow-hidden rounded-xl">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+          </div>
         )}
         
         {/* Frame Overlay */}
