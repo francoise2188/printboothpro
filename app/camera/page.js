@@ -1,21 +1,26 @@
 'use client';
-import { useEffect, useRef, useState, Suspense } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useSearchParams } from 'next/navigation';
 import styles from './page.module.css';
 
-function CameraContent() {
+export default function CameraTest() {
   const videoRef = useRef(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [overlayUrl, setOverlayUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const supabase = createClientComponentClient();
   const searchParams = useSearchParams();
-  const eventId = searchParams.get('event');
+  const eventId = searchParams?.get('event');
 
   // Fetch theme settings
   useEffect(() => {
     async function fetchThemeSettings() {
-      if (!eventId) return;
+      setIsLoading(true);
+      if (!eventId) {
+        setIsLoading(false);
+        return;
+      }
 
       try {
         const { data, error } = await supabase
@@ -26,7 +31,6 @@ function CameraContent() {
 
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching theme:', error);
-          return;
         }
 
         if (data?.frame_overlay) {
@@ -35,6 +39,7 @@ function CameraContent() {
       } catch (error) {
         console.error('Error:', error);
       }
+      setIsLoading(false);
     }
 
     fetchThemeSettings();
@@ -76,6 +81,10 @@ function CameraContent() {
     link.href = photo;
     link.click();
   };
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className={styles.container}>
@@ -121,13 +130,5 @@ function CameraContent() {
         )}
       </div>
     </div>
-  );
-}
-
-export default function CameraTest() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <CameraContent />
-    </Suspense>
   );
 }
