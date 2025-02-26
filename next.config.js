@@ -12,8 +12,11 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['localhost'],
+    domains: ['localhost', 'printboothpro.com', 'printbooth-pro.vercel.app'],
     unoptimized: true
+  },
+  env: {
+    NEXT_PUBLIC_SITE_URL: 'https://printboothpro.com'
   },
   webpack: (config) => {
     config.watchOptions = {
