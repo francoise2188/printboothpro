@@ -12,7 +12,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['localhost', 'printboothpro.com', 'printbooth-pro.vercel.app'],
+    domains: ['localhost', 'printboothpro.com', 'printbooth-pro.vercel.app', 'printbooth-pro-git-camera-test.vercel.app'],
     unoptimized: true
   },
   env: {

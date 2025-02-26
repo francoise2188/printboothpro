@@ -175,45 +175,17 @@ export default function EventCameraComponent({ eventId }) {
       // Try to get the widest possible view
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           facingMode: 'environment',
-          width: { min: 320, ideal: 640, max: 1920 },
-          height: { min: 240, ideal: 480, max: 1080 }
+          zoom: 1,  // Force zoom to 1
+          advanced: [{ zoom: 1 }]  // Additional zoom constraint
         },
         audio: false
       });
 
-      // Get the video track and log its capabilities
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        console.log('📹 Video track:', videoTrack.label);
-        console.log('⚙️ Track settings:', videoTrack.getSettings());
-        console.log('🎛️ Track constraints:', videoTrack.getConstraints());
-        
-        const capabilities = videoTrack.getCapabilities();
-        console.log('✨ Camera capabilities:', capabilities);
-
-        // If zoom is available, try to set it to minimum
-        if (capabilities?.zoom) {
-          console.log('🔍 Zoom range:', capabilities.zoom.min, 'to', capabilities.zoom.max);
-          try {
-            await videoTrack.applyConstraints({
-              advanced: [{ zoom: capabilities.zoom.min }]
-            });
-            console.log('✅ Applied minimum zoom:', capabilities.zoom.min);
-          } catch (error) {
-            console.log('❌ Could not apply zoom:', error);
-          }
-        } else {
-          console.log('ℹ️ No zoom control available');
-        }
-
-        // Log final settings after all constraints are applied
-        console.log('🎯 Final video settings:', videoTrack.getSettings());
-      }
-      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Log video element properties once it's loaded
         videoRef.current.onloadedmetadata = () => {
           console.log('📺 Video element size:', {
             videoWidth: videoRef.current.videoWidth,
