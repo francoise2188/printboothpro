@@ -172,13 +172,8 @@ export default function EventCameraComponent({ eventId }) {
       const cameras = devices.filter(device => device.kind === 'videoinput');
       console.log('📸 Available cameras:', cameras);
 
-      // Try to get the widest possible view with basic settings
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: 640,
-          height: 480,
-          facingMode: 'environment'
-        },
+        video: { facingMode: 'environment' },
         audio: false
       });
 
@@ -223,39 +218,38 @@ export default function EventCameraComponent({ eventId }) {
   return (
     <div className="min-h-screen bg-black p-4">
       {/* Camera Container */}
-      <div className="relative w-full max-w-md mx-auto aspect-[3/4]">
+      <div className="relative w-full h-[70vh] overflow-hidden">
         {photo ? (
-          <img
-            src={photo}
-            alt="Captured photo"
-            className="absolute inset-0 w-full h-full object-contain rounded-xl"
-          />
+          <div className="relative h-full w-full">
+            <img
+              src={photo}
+              alt="Captured photo"
+              className="w-full h-full object-cover"
+            />
+            {overlayUrl && (
+              <img
+                src={overlayUrl}
+                alt="Frame overlay"
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
+              />
+            )}
+          </div>
         ) : (
-          <div className="absolute inset-0 overflow-hidden rounded-xl">
+          <div className="relative h-full w-full">
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
-              style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                transform: 'scaleX(-1)'  // Mirror the camera view
-              }}
+              className="w-full h-full object-cover"
             />
-          </div>
-        )}
-        
-        {/* Frame Overlay */}
-        {overlayUrl && (
-          <div className="absolute inset-0 z-10 pointer-events-none">
-            <img
-              src={overlayUrl}
-              alt="Frame overlay"
-              className="w-full h-full object-contain"
-            />
+            {overlayUrl && (
+              <img
+                src={overlayUrl}
+                alt="Frame overlay"
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
+              />
+            )}
           </div>
         )}
 
