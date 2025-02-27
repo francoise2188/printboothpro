@@ -175,11 +175,14 @@ export default function EventCameraComponent({ eventId }) {
       // Try to get the widest possible view
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
           facingMode: 'environment',
-          zoom: 1,
-          aspectRatio: { ideal: 1.777777778 }
+          advanced: [
+            { zoom: 1 },
+            { focusMode: "manual" },
+            { focusDistance: 2 }
+          ]
         },
         audio: false
       });
