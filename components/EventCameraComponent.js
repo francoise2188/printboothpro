@@ -121,42 +121,52 @@ export default function EventCameraComponent({ eventId }) {
   };
 
   const takePhoto = () => {
-    if (videoRef.current) {
+    if (!videoRef.current) return;
+
+    try {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
       
-      // Use a fixed size that matches common photo booth dimensions
-      canvas.width = 1080;  // 3:4 ratio for portrait orientation
-      canvas.height = 1440;
+      // Keep the 3:4 ratio for template compatibility
+      canvas.width = 1080;  // Standard width
+      canvas.height = 1440; // 4:3 ratio for templates
       
       const ctx = canvas.getContext('2d');
-      
-      // Calculate scaling to fit the video while maintaining aspect ratio
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // Calculate how to fit the video in our 3:4 canvas
       const videoAspect = video.videoWidth / video.videoHeight;
       const canvasAspect = canvas.width / canvas.height;
       
-      let drawWidth = canvas.width;
-      let drawHeight = canvas.height;
-      let offsetX = 0;
-      let offsetY = 0;
-      
+      let sourceWidth = video.videoWidth;
+      let sourceHeight = video.videoHeight;
+      let destX = 0;
+      let destY = 0;
+      let destWidth = canvas.width;
+      let destHeight = canvas.height;
+
+      // Fit video to canvas while maintaining aspect ratio
       if (videoAspect > canvasAspect) {
         // Video is wider than canvas
-        drawWidth = canvas.height * videoAspect;
-        offsetX = -(drawWidth - canvas.width) / 2;
+        destWidth = canvas.height * videoAspect;
+        destX = -(destWidth - canvas.width) / 2;
       } else {
         // Video is taller than canvas
-        drawHeight = canvas.width / videoAspect;
-        offsetY = -(drawHeight - canvas.height) / 2;
+        destHeight = canvas.width / videoAspect;
+        destY = -(destHeight - canvas.height) / 2;
       }
-      
-      // Draw the video frame
-      ctx.drawImage(
-        video,
-        offsetX, offsetY, drawWidth, drawHeight
-      );
 
-      setPhoto(canvas.toDataURL('image/jpeg', 0.95));
+      // Draw at natural size (no scaling during capture)
+      ctx.drawImage(video, destX, destY, destWidth, destHeight);
+      
+      const photoUrl = canvas.toDataURL('image/jpeg', 1.0);
+      console.log('Photo captured, size:', Math.round(photoUrl.length / 1024), 'KB');
+      
+      setPhoto(photoUrl);
+    } catch (error) {
+      console.error('Error capturing photo:', error);
+      toast.error('Failed to capture photo. Please try again.');
     }
   };
 
@@ -275,12 +285,28 @@ export default function EventCameraComponent({ eventId }) {
             </button>
           </>
         ) : (
-          <button 
-            onClick={startCountdown}
-            className="w-full p-3 bg-blue-500 text-white rounded-lg"
-          >
-            Take Photo
-          </button>
+          <>
+            <button 
+              onClick={startCountdown}
+              className="w-full p-3 bg-blue-500 text-white rounded-lg"
+            >
+              Take Photo
+            </button>
+            <button
+              onClick={() => {
+                if (videoRef.current?.srcObject) {
+                  const track = videoRef.current.srcObject.getVideoTracks()[0];
+                  const settings = track.getSettings();
+                  track.applyConstraints({
+                    facingMode: settings.facingMode === 'user' ? 'environment' : 'user'
+                  });
+                }
+              }}
+              className="w-full p-3 bg-gray-500 text-white rounded-lg"
+            >
+              Switch Camera
+            </button>
+          </>
         )}
         <button 
           onClick={() => router.push(`/event/${eventId}`)}
