@@ -13,6 +13,7 @@ export default function EventCameraComponent({ eventId }) {
   const [countdownNumber, setCountdownNumber] = useState(null);
   const router = useRouter();
   const supabase = createClientComponentClient();
+  const [cameraActive, setCameraActive] = useState(false);
 
   // Fetch frame overlay from Supabase
   useEffect(() => {
@@ -43,6 +44,16 @@ export default function EventCameraComponent({ eventId }) {
       fetchFrame();
     }
   }, [eventId, supabase]);
+
+  useEffect(() => {
+    startCamera();
+    return () => {
+      if (videoRef.current?.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+      }
+    };
+  }, []);
 
   const savePhoto = async () => {
     if (!photo) {
@@ -130,14 +141,9 @@ export default function EventCameraComponent({ eventId }) {
       canvas.height = video.videoHeight;
       
       const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(video, 0, 0);
       
-      // Convert to high quality JPEG
       const photoUrl = canvas.toDataURL('image/jpeg', 1.0);
-      console.log('Photo captured, size:', Math.round(photoUrl.length / 1024), 'KB');
-      
       setPhoto(photoUrl);
     } catch (error) {
       console.error('Error capturing photo:', error);
@@ -153,12 +159,17 @@ export default function EventCameraComponent({ eventId }) {
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
+        video: { 
+          facingMode: 'user',
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
         audio: false
       });
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        setCameraActive(true);
       }
     } catch (error) {
       console.error('Camera error:', error);
@@ -188,85 +199,49 @@ export default function EventCameraComponent({ eventId }) {
   };
 
   return (
-    <div style={{ 
-      height: '100svh',
-      backgroundColor: '#000',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
-      {/* Camera and Photo Display */}
-      <div style={{
-        position: 'relative',
-        width: '100%',
-        height: '70vh',
-        overflow: 'hidden'
-      }}>
+    <div className="min-h-screen bg-black">
+      <div className="relative w-full h-[80vh]">
         {photo ? (
-          <div style={{ position: 'relative', height: '100%', width: '100%' }}>
-            <img 
-              src={photo} 
+          <div className="relative w-full h-full">
+            <img
+              src={photo}
               alt="Captured photo"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover'
-              }}
+              className="w-full h-full object-contain"
             />
             {overlayUrl && (
               <img
                 src={overlayUrl}
                 alt="Frame overlay"
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'fill',
-                  pointerEvents: 'none',
-                  zIndex: 10
-                }}
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"
               />
             )}
           </div>
         ) : (
-          <div style={{ position: 'relative', height: '100%', width: '100%' }}>
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted 
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover'
-              }} 
+          <div className="relative w-full h-full">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-contain"
+              onPlay={() => setCameraActive(true)}
             />
             {overlayUrl && (
               <img
                 src={overlayUrl}
                 alt="Frame overlay"
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'fill',
-                  pointerEvents: 'none',
-                  zIndex: 10
-                }}
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"
               />
             )}
           </div>
         )}
-
+        
         {/* Countdown Overlay */}
         <CountdownOverlay number={countdownNumber} />
       </div>
 
       {/* Controls */}
-      <div className="mt-4 max-w-md mx-auto space-y-4">
+      <div className="p-4 max-w-md mx-auto space-y-4">
         {photo ? (
           <>
             <button 
@@ -287,6 +262,7 @@ export default function EventCameraComponent({ eventId }) {
             <button 
               onClick={startCountdown}
               className="w-full p-3 bg-blue-500 text-white rounded-lg"
+              disabled={!cameraActive}
             >
               Take Photo
             </button>
