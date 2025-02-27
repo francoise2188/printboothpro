@@ -175,10 +175,11 @@ export default function EventCameraComponent({ eventId }) {
       // Try to get the widest possible view
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { min: 720, ideal: 1080, max: 1920 },
-          height: { min: 960, ideal: 1440, max: 2560 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
           facingMode: 'environment',
-          // Remove zoom constraints as they might cause issues on some devices
+          zoom: 1,
+          aspectRatio: { ideal: 1.777777778 }
         },
         audio: false
       });
