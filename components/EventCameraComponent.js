@@ -172,17 +172,12 @@ export default function EventCameraComponent({ eventId }) {
       const cameras = devices.filter(device => device.kind === 'videoinput');
       console.log('📸 Available cameras:', cameras);
 
-      // Try to get the widest possible view
+      // Try to get the widest possible view with basic settings
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
-          facingMode: 'environment',
-          advanced: [
-            { zoom: 1 },
-            { focusMode: "manual" },
-            { focusDistance: 2 }
-          ]
+          width: 640,
+          height: 480,
+          facingMode: 'environment'
         },
         audio: false
       });
@@ -246,7 +241,8 @@ export default function EventCameraComponent({ eventId }) {
                 position: 'absolute',
                 width: '100%',
                 height: '100%',
-                objectFit: 'contain'
+                objectFit: 'cover',
+                transform: 'scaleX(-1)'  // Mirror the camera view
               }}
             />
           </div>
