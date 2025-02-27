@@ -183,12 +183,18 @@ export default function EventCameraComponent({ eventId }) {
       console.log('📸 Available cameras:', cameras);
 
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1080 },
+          height: { ideal: 1440 },
+          aspectRatio: { ideal: 3/4 }
+        },
         audio: false
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Log video dimensions once metadata is loaded
         videoRef.current.onloadedmetadata = () => {
           console.log('📺 Video element size:', {
             videoWidth: videoRef.current.videoWidth,
@@ -228,19 +234,19 @@ export default function EventCameraComponent({ eventId }) {
   return (
     <div className="min-h-screen bg-black p-4">
       {/* Camera Container */}
-      <div className="relative w-full h-[70vh] overflow-hidden">
+      <div className="relative w-full aspect-[3/4] max-h-[70vh] overflow-hidden bg-gray-900">
         {photo ? (
           <div className="relative h-full w-full">
             <img
               src={photo}
               alt="Captured photo"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
             {overlayUrl && (
               <img
                 src={overlayUrl}
                 alt="Frame overlay"
-                className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"
               />
             )}
           </div>
@@ -251,13 +257,13 @@ export default function EventCameraComponent({ eventId }) {
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
             />
             {overlayUrl && (
               <img
                 src={overlayUrl}
                 alt="Frame overlay"
-                className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"
               />
             )}
           </div>
