@@ -126,40 +126,15 @@ export default function EventCameraComponent({ eventId }) {
     try {
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
-      
-      // Keep the 3:4 ratio for template compatibility
-      canvas.width = 1080;  // Standard width
-      canvas.height = 1440; // 4:3 ratio for templates
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-
-      // Calculate how to fit the video in our 3:4 canvas
-      const videoAspect = video.videoWidth / video.videoHeight;
-      const canvasAspect = canvas.width / canvas.height;
+      ctx.drawImage(video, 0, 0);
       
-      let sourceWidth = video.videoWidth;
-      let sourceHeight = video.videoHeight;
-      let destX = 0;
-      let destY = 0;
-      let destWidth = canvas.width;
-      let destHeight = canvas.height;
-
-      // Fit video to canvas while maintaining aspect ratio
-      if (videoAspect > canvasAspect) {
-        // Video is wider than canvas
-        destWidth = canvas.height * videoAspect;
-        destX = -(destWidth - canvas.width) / 2;
-      } else {
-        // Video is taller than canvas
-        destHeight = canvas.width / videoAspect;
-        destY = -(destHeight - canvas.height) / 2;
-      }
-
-      // Draw at natural size (no scaling during capture)
-      ctx.drawImage(video, destX, destY, destWidth, destHeight);
-      
+      // Convert to high quality JPEG
       const photoUrl = canvas.toDataURL('image/jpeg', 1.0);
       console.log('Photo captured, size:', Math.round(photoUrl.length / 1024), 'KB');
       
@@ -177,35 +152,16 @@ export default function EventCameraComponent({ eventId }) {
         tracks.forEach(track => track.stop());
       }
 
-      // First, let's log what devices are available
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cameras = devices.filter(device => device.kind === 'videoinput');
-      console.log('📸 Available cameras:', cameras);
-
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1080 },
-          height: { ideal: 1440 },
-          aspectRatio: { ideal: 3/4 }
-        },
+        video: { facingMode: 'user' },
         audio: false
       });
-
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Log video dimensions once metadata is loaded
-        videoRef.current.onloadedmetadata = () => {
-          console.log('📺 Video element size:', {
-            videoWidth: videoRef.current.videoWidth,
-            videoHeight: videoRef.current.videoHeight,
-            clientWidth: videoRef.current.clientWidth,
-            clientHeight: videoRef.current.clientHeight
-          });
-        };
       }
     } catch (error) {
-      console.error('❌ Camera error:', error);
+      console.error('Camera error:', error);
       toast.error('Failed to start camera');
     }
   };
@@ -232,38 +188,74 @@ export default function EventCameraComponent({ eventId }) {
   };
 
   return (
-    <div className="min-h-screen bg-black p-4">
-      {/* Camera Container */}
-      <div className="relative w-full aspect-[3/4] max-h-[70vh] overflow-hidden bg-gray-900">
+    <div style={{ 
+      height: '100svh',
+      backgroundColor: '#000',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      {/* Camera and Photo Display */}
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        height: '70vh',
+        overflow: 'hidden'
+      }}>
         {photo ? (
-          <div className="relative h-full w-full">
-            <img
-              src={photo}
+          <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+            <img 
+              src={photo} 
               alt="Captured photo"
-              className="w-full h-full object-contain"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
             />
             {overlayUrl && (
               <img
                 src={overlayUrl}
                 alt="Frame overlay"
-                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'fill',
+                  pointerEvents: 'none',
+                  zIndex: 10
+                }}
               />
             )}
           </div>
         ) : (
-          <div className="relative h-full w-full">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute inset-0 w-full h-full object-cover"
+          <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              muted 
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }} 
             />
             {overlayUrl && (
               <img
                 src={overlayUrl}
                 alt="Frame overlay"
-                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'fill',
+                  pointerEvents: 'none',
+                  zIndex: 10
+                }}
               />
             )}
           </div>
