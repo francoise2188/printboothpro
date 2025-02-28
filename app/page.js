@@ -113,7 +113,7 @@ function HomeContent() {
             e.preventDefault();
             if (email) {
               localStorage.setItem('userEmail', email);
-              const targetUrl = `/camera?event=${eventId}`;
+              const targetUrl = `/camera/${eventId}`;
               console.log('Redirecting to:', targetUrl);
               router.push(targetUrl);
             }

@@ -34,7 +34,31 @@ export default function EventPage() {
       try {
         setIsLoading(true);
         
-        // Fetch event data with error logging
+        // Log the exact ID we're searching for
+        console.log('Searching database for event ID:', eventId);
+        
+        // First, let's check how many events match this ID
+        const { data: countData, error: countError } = await supabase
+          .from('events')
+          .select('id')
+          .eq('id', eventId);
+          
+        if (countError) {
+          console.error('Error checking event count:', countError);
+          throw countError;
+        }
+        
+        console.log('Number of matching events:', countData?.length || 0);
+        if (countData?.length > 1) {
+          console.error('Multiple events found with ID:', eventId);
+          throw new Error('Multiple events found with this ID');
+        }
+        if (countData?.length === 0) {
+          console.error('No events found with ID:', eventId);
+          throw new Error('Event not found');
+        }
+        
+        // Now fetch the full event data
         const { data: eventData, error: eventError } = await supabase
           .from('events')
           .select('*, design_settings(*)')
@@ -176,6 +200,7 @@ export default function EventPage() {
           e.preventDefault();
           if (email) {
             localStorage.setItem('userEmail', email);
+            // Use the new camera URL format
             const targetUrl = `/camera/${eventId}`;
             console.log('Redirecting to:', targetUrl);
             router.push(targetUrl);
