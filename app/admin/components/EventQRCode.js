@@ -14,10 +14,26 @@ export default function EventQRCode({ eventId, eventName }) {
   useEffect(() => {
     setMounted(true);
     
-    // Get the current domain
-    const baseUrl = typeof window !== 'undefined' 
-      ? window.location.origin 
-      : process.env.NEXT_PUBLIC_SITE_URL || 'https://printboothpro.com';
+    // Get the base URL - try environment variable first, then fallback to window.location.origin
+    let baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    
+    // Log the environment variables for debugging
+    console.log('Environment variables:', {
+      NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+      NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
+      VERCEL_URL: process.env.VERCEL_URL
+    });
+
+    // If no environment URL, use window.location.origin but ensure it's https for production
+    if (!baseUrl) {
+      baseUrl = window.location.origin;
+      if (baseUrl.includes('vercel.app')) {
+        baseUrl = baseUrl.replace('http:', 'https:');
+      }
+      console.log('Using window.location.origin as base URL:', baseUrl);
+    } else {
+      console.log('Using environment variable for base URL:', baseUrl);
+    }
     
     // Create the event URL without any encoding
     const newEventUrl = `${baseUrl}/event/${eventId}`;

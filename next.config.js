@@ -24,9 +24,25 @@ const nextConfig = {
     unoptimized: true
   },
   env: {
-    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_VERCEL_URL 
-      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` 
-      : 'https://printboothpro.com'
+    // First try NEXT_PUBLIC_BASE_URL (your custom domain)
+    // Then try VERCEL_URL with https
+    // Finally fallback to localhost for development
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_BASE_URL || 
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+  },
+  // Add headers to ensure HTTPS
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains'
+          }
+        ],
+      },
+    ]
   },
   webpack: (config) => {
     config.watchOptions = {
