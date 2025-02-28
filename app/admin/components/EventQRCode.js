@@ -13,10 +13,11 @@ export default function EventQRCode({ eventId, eventName }) {
 
   useEffect(() => {
     setMounted(true);
-    // Use localhost:3000 for development, otherwise use the production URL
-    const baseUrl = process.env.NODE_ENV === 'development' 
-      ? 'http://localhost:3000'
-      : process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    
+    // Get the current domain
+    const baseUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : process.env.NEXT_PUBLIC_SITE_URL || 'https://printboothpro.com';
     
     // Create the event URL without any encoding
     const newEventUrl = `${baseUrl}/event/${eventId}`;
