@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
-import CameraComponent from './CameraComponent';
+import NewEventCamera from '../../components/NewEventCamera';
 
-export default function CameraPage({ searchParams }) {
-  const eventId = searchParams?.event;
+export default async function CameraPage({ searchParams }) {
+  const eventId = await searchParams?.event;
 
   return (
     <Suspense fallback={<div>Loading camera...</div>}>
-      <CameraComponent eventId={eventId} />
+      <NewEventCamera eventId={eventId} />
     </Suspense>
   );
 }
