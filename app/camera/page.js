@@ -11,18 +11,18 @@ function CameraRedirectContent() {
     // Get the event ID from the URL query parameters
     const eventId = searchParams.get('event');
     
-    console.log('Redirecting from old camera route:', {
-      eventId,
-      currentUrl: window.location.href
-    });
+    console.log('%c 🎥 OLD CAMERA ROUTE ACTIVATED 🎥', 'background: #ff0000; color: #ffffff; font-size: 20px; padding: 10px; border-radius: 5px;');
+    console.log('%c Current URL:', 'font-size: 16px; color: #00ff00;', window.location.href);
+    console.log('%c Event ID:', 'font-size: 16px; color: #00ff00;', eventId);
 
     // If we have an event ID, redirect to the new camera route
     if (eventId) {
-      console.log('Redirecting to:', `/camera/${eventId}`);
+      console.log('%c 🔄 REDIRECTING TO NEW CAMERA ROUTE 🔄', 'background: #0000ff; color: #ffffff; font-size: 20px; padding: 10px; border-radius: 5px;');
+      console.log('%c Target URL:', 'font-size: 16px; color: #00ff00;', `/camera/${eventId}`);
       router.replace(`/camera/${eventId}`);
     } else {
       // If no event ID, redirect to home
-      console.log('No event ID found, redirecting to home');
+      console.log('%c ⚠️ NO EVENT ID FOUND - REDIRECTING TO HOME ⚠️', 'background: #ff6600; color: #ffffff; font-size: 20px; padding: 10px; border-radius: 5px;');
       router.replace('/');
     }
   }, [router, searchParams]);

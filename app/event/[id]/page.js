@@ -196,14 +196,18 @@ export default function EventPage() {
         maxWidth: '350px',
         zIndex: 2
       }}>
-        <form onSubmit={(e) => {
+        <form onSubmit={async (e) => {
           e.preventDefault();
           if (email) {
+            console.log('%c 📸 PHOTO BOOTH FORM SUBMITTED 📸', 'background: #ff00ff; color: #ffffff; font-size: 20px; padding: 10px; border-radius: 5px;');
+            console.log('%c Email:', 'font-size: 16px; color: #00ff00;', email);
+            
             localStorage.setItem('userEmail', email);
-            // Use the new camera URL format
+            // Use the new camera URL format with replace instead of push
             const targetUrl = `/camera/${eventId}`;
-            console.log('Redirecting to:', targetUrl);
-            router.push(targetUrl);
+            console.log('%c 🎯 REDIRECTING TO CAMERA 🎯', 'background: #00ff00; color: #000000; font-size: 20px; padding: 10px; border-radius: 5px;');
+            console.log('%c Target URL:', 'font-size: 16px; color: #0000ff;', targetUrl);
+            await router.replace(targetUrl);
           }
         }}>
           <input
