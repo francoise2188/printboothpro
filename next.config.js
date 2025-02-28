@@ -24,9 +24,8 @@ const nextConfig = {
     unoptimized: true
   },
   env: {
-    // First try NEXT_PUBLIC_BASE_URL (your custom domain)
-    // Then try VERCEL_URL with https
-    // Finally fallback to localhost for development
+    // Use NEXT_PUBLIC_BASE_URL as the primary URL
+    // This should be set to https://printboothpro.com in Vercel
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_BASE_URL || 
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
   },
