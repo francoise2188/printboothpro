@@ -12,11 +12,17 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['localhost', 'printboothpro.com', 'printbooth-pro.vercel.app', 'printbooth-pro-git-camera-test.vercel.app'],
+    domains: [
+      'localhost', 
+      'printboothpro.com', 
+      'printbooth-pro.vercel.app', 
+      'printbooth-pro-git-camera-test.vercel.app',
+      'printbooth-pro-git-camera-test-francoise-tonetos-projects.vercel.app'
+    ],
     unoptimized: true
   },
   env: {
-    NEXT_PUBLIC_SITE_URL: 'https://printboothpro.com'
+    NEXT_PUBLIC_SITE_URL: process.env.VERCEL_URL || 'https://printboothpro.com'
   },
   webpack: (config) => {
     config.watchOptions = {
@@ -25,12 +31,16 @@ const nextConfig = {
     }
     return config
   },
-  // Update rewrites to handle event routes properly
+  // Update rewrites to handle all routes properly
   async rewrites() {
     return [
       {
         source: '/event/:path*',
         destination: '/event/:path*',
+      },
+      {
+        source: '/test-camera',
+        destination: '/test-camera',
       }
     ]
   },
