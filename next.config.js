@@ -17,12 +17,16 @@ const nextConfig = {
       'printboothpro.com', 
       'printbooth-pro.vercel.app', 
       'printbooth-pro-git-camera-test.vercel.app',
-      'printbooth-pro-git-camera-test-francoise-tonetos-projects.vercel.app'
+      'printbooth-pro-git-camera-test-francoise-tonetos-projects.vercel.app',
+      'printbooth-62zcllyci-francoise-tonetos-projects.vercel.app',
+      'vercel.app'
     ],
     unoptimized: true
   },
   env: {
-    NEXT_PUBLIC_SITE_URL: process.env.VERCEL_URL || 'https://printboothpro.com'
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_VERCEL_URL 
+      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` 
+      : 'https://printboothpro.com'
   },
   webpack: (config) => {
     config.watchOptions = {
@@ -41,6 +45,10 @@ const nextConfig = {
       {
         source: '/test-camera',
         destination: '/test-camera',
+      },
+      {
+        source: '/subscription',
+        destination: '/subscription',
       }
     ]
   },
