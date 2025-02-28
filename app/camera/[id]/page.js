@@ -1,7 +1,11 @@
+'use client';
+
 import { Suspense } from 'react';
+import { useParams } from 'next/navigation';
 import NewEventCamera from '../../../components/NewEventCamera';
 
-export default async function CameraPage({ params }) {
+export default function CameraPage() {
+  const params = useParams();
   const eventId = params?.id;
 
   // If no event ID, redirect to home
