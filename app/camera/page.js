@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function CameraRedirectPage() {
+function CameraRedirectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -27,13 +27,25 @@ export default function CameraRedirectPage() {
     }
   }, [router, searchParams]);
 
-  // Show loading state while redirecting
+  return (
+    <div className="text-center text-white">
+      <h2 className="text-xl font-semibold">Redirecting...</h2>
+      <p className="mt-2 text-gray-400">Please wait while we update your URL</p>
+    </div>
+  );
+}
+
+export default function CameraRedirectPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-black">
-      <div className="text-center text-white">
-        <h2 className="text-xl font-semibold">Redirecting...</h2>
-        <p className="mt-2 text-gray-400">Please wait while we update your URL</p>
-      </div>
+      <Suspense fallback={
+        <div className="text-center text-white">
+          <h2 className="text-xl font-semibold">Loading...</h2>
+          <p className="mt-2 text-gray-400">Please wait</p>
+        </div>
+      }>
+        <CameraRedirectContent />
+      </Suspense>
     </div>
   );
 } 
