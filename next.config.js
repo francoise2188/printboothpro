@@ -30,7 +30,7 @@ const nextConfig = {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_BASE_URL || 
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
   },
-  // Add headers to ensure HTTPS
+  // Add headers to ensure HTTPS and prevent caching
   async headers() {
     return [
       {
@@ -39,9 +39,31 @@ const nextConfig = {
           {
             key: 'Strict-Transport-Security',
             value: 'max-age=31536000; includeSubDomains'
+          },
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0'
           }
         ],
       },
+      {
+        source: '/camera/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0'
+          }
+        ],
+      },
+      {
+        source: '/event/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-store, max-age=0'
+          }
+        ],
+      }
     ]
   },
   webpack: (config) => {
@@ -69,6 +91,23 @@ const nextConfig = {
       {
         source: '/subscription',
         destination: '/subscription',
+      }
+    ]
+  },
+  // Add redirects for old routes
+  async redirects() {
+    return [
+      {
+        source: '/camera',
+        has: [
+          {
+            type: 'query',
+            key: 'event',
+            value: '(?<eventId>.*)',
+          },
+        ],
+        destination: '/camera/:eventId',
+        permanent: true,
       }
     ]
   },
