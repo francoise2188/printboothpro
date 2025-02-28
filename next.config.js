@@ -82,30 +82,28 @@ const nextConfig = {
       {
         source: '/camera/:id',
         destination: '/camera/:id',
-      },
-      {
-        source: '/test-camera',
-        destination: '/test-camera',
-      },
-      {
-        source: '/subscription',
-        destination: '/subscription',
       }
     ]
   },
   // Add redirects for old routes
   async redirects() {
     return [
+      // Force www to non-www
       {
-        source: '/camera',
+        source: '/:path*',
         has: [
           {
-            type: 'query',
-            key: 'event',
-            value: '(?<eventId>.*)',
+            type: 'host',
+            value: 'www.printboothpro.com',
           },
         ],
-        destination: '/camera/:eventId',
+        destination: 'https://printboothpro.com/:path*',
+        permanent: true,
+      },
+      // Redirect any old camera URLs to home
+      {
+        source: '/camera',
+        destination: '/',
         permanent: true,
       }
     ]

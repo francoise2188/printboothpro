@@ -199,15 +199,24 @@ export default function EventPage() {
         <form onSubmit={async (e) => {
           e.preventDefault();
           if (email) {
-            console.log('%c 📸 PHOTO BOOTH FORM SUBMITTED 📸', 'background: #ff00ff; color: #ffffff; font-size: 20px; padding: 10px; border-radius: 5px;');
-            console.log('%c Email:', 'font-size: 16px; color: #00ff00;', email);
+            console.log('%c 🚀 STARTING PHOTO BOOTH REDIRECT 🚀', 'background: #ff00ff; color: #ffffff; font-size: 24px; padding: 15px; border-radius: 5px;');
+            console.log('%c Event ID:', 'font-size: 18px; color: #00ff00;', eventId);
+            console.log('%c Email:', 'font-size: 18px; color: #00ff00;', email);
             
+            // Store email in localStorage
             localStorage.setItem('userEmail', email);
-            // Use the new camera URL format with replace instead of push
+            
+            // Construct the new camera URL
             const targetUrl = `/camera/${eventId}`;
-            console.log('%c 🎯 REDIRECTING TO CAMERA 🎯', 'background: #00ff00; color: #000000; font-size: 20px; padding: 10px; border-radius: 5px;');
-            console.log('%c Target URL:', 'font-size: 16px; color: #0000ff;', targetUrl);
-            await router.replace(targetUrl);
+            console.log('%c 📸 CAMERA URL:', 'font-size: 18px; color: #ff0000;', targetUrl);
+            
+            try {
+              console.log('%c 🔄 INITIATING REDIRECT...', 'background: #00ff00; color: #000000; font-size: 24px; padding: 15px; border-radius: 5px;');
+              await router.replace(targetUrl);
+              console.log('%c ✅ REDIRECT CALLED', 'background: #0000ff; color: #ffffff; font-size: 24px; padding: 15px; border-radius: 5px;');
+            } catch (error) {
+              console.error('%c ❌ REDIRECT ERROR:', 'background: #ff0000; color: #ffffff; font-size: 24px; padding: 15px; border-radius: 5px;', error);
+            }
           }
         }}>
           <input
