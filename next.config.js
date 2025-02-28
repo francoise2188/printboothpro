@@ -59,10 +59,6 @@ const nextConfig = {
         destination: '/event/:path*',
       },
       {
-        source: '/camera',
-        destination: '/camera',
-      },
-      {
         source: '/camera/:id',
         destination: '/camera/:id',
       },
