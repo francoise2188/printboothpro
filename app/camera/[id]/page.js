@@ -21,7 +21,14 @@ export default function CameraPage() {
   }
 
   return (
-    <Suspense fallback={<div>Loading camera...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center text-white">
+          <h2 className="text-xl font-semibold">Initializing Camera...</h2>
+          <p className="mt-2 text-gray-400">Please wait while we set up your photo booth</p>
+        </div>
+      </div>
+    }>
       <NewEventCamera eventId={eventId} />
     </Suspense>
   );
