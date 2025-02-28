@@ -21,8 +21,9 @@ export default function ImagePreview({ imageData, alt = 'Preview', width = 200, 
     // Log the incoming image data for debugging
     console.log('📸 Image Preview Data:', {
       type: typeof imageData,
-      value: typeof imageData === 'string' ? imageData.substring(0, 100) + '...' : imageData,
-      isObject: typeof imageData === 'object'
+      value: imageData,
+      isObject: typeof imageData === 'object',
+      keys: typeof imageData === 'object' ? Object.keys(imageData) : null
     });
 
     // Handle different types of image data
@@ -49,6 +50,10 @@ export default function ImagePreview({ imageData, alt = 'Preview', width = 200, 
       // If it's an object with a publicUrl property
       else if (typeof imageData === 'object' && imageData?.publicUrl) {
         setImageUrl(imageData.publicUrl);
+      }
+      // If it's an object with a landing_background property
+      else if (typeof imageData === 'object' && imageData?.landing_background) {
+        setImageUrl(imageData.landing_background);
       }
       else {
         console.error('Unsupported image data format:', imageData);
