@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import styles from './page.module.css';
 
 function HomeContent() {
@@ -24,7 +25,7 @@ function HomeContent() {
     async function checkEventStatus() {
       const { data, error } = await supabase
         .from('events')
-        .select('is_active')
+        .select('*, design_settings(*)')
         .eq('id', eventId)
         .single();
 
@@ -36,47 +37,18 @@ function HomeContent() {
       // If event is not active, redirect to ended page
       if (!data.is_active) {
         router.push('/event-ended');
+        return;
+      }
+
+      // Set background URL from design settings
+      if (data.design_settings?.[0]?.landing_background) {
+        console.log('Setting background URL:', data.design_settings[0].landing_background);
+        setBackgroundUrl(data.design_settings[0].landing_background);
       }
     }
 
     checkEventStatus();
   }, [eventId, router]);
-
-  useEffect(() => {
-    async function fetchEventData() {
-      console.log('🎯 Fetching event data for:', eventId);
-      try {
-        const { data, error } = await supabase
-          .from('design_settings')
-          .select('landing_background')
-          .eq('event_id', eventId)
-          .maybeSingle();
-
-        console.log('📦 Design settings data:', data);
-        console.log('🖼️ Background URL:', data?.landing_background);
-
-        if (error) {
-          console.error('❌ Error:', error);
-          // Don't return/throw error if it's just that no settings exist
-          if (!error.message.includes('No rows returned')) {
-            return;
-          }
-        }
-        
-        // Set the background URL to state
-        if (data?.landing_background) {
-          setBackgroundUrl(data.landing_background);
-        }
-        
-      } catch (error) {
-        console.error('❌ Fetch error:', error);
-      }
-    }
-
-    if (eventId) {
-      fetchEventData();
-    }
-  }, [eventId]);
 
   // If this is an event page, show the event-specific layout
   if (eventId) {
@@ -93,23 +65,35 @@ function HomeContent() {
       }}>
         {/* Background Image Container */}
         {backgroundUrl && (
-          <img
-            src={backgroundUrl}
-            alt="Background"
-            style={{
-              position: 'absolute',
-              height: '102vh',
-              width: 'auto',
-              maxWidth: 'none',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -50%)',
-              margin: 0,
-              padding: 0,
-              objectFit: 'contain',
-              objectPosition: 'center'
-            }}
-          />
+          <div style={{
+            position: 'absolute',
+            height: '102vh',
+            width: '100vw',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            margin: 0,
+            padding: 0,
+          }}>
+            <Image
+              src={backgroundUrl}
+              alt="Event Background"
+              fill
+              style={{
+                objectFit: 'contain',
+                objectPosition: 'center'
+              }}
+              onError={(e) => {
+                console.error('Error loading background image:', e);
+                console.log('Attempted URL:', backgroundUrl);
+              }}
+              onLoad={() => {
+                console.log('Background image loaded successfully');
+              }}
+              priority
+              unoptimized
+            />
+          </div>
         )}
 
         {/* Email Form */}
@@ -129,7 +113,9 @@ function HomeContent() {
             e.preventDefault();
             if (email) {
               localStorage.setItem('userEmail', email);
-              router.push(`/camera?event=${eventId}`);
+              const targetUrl = `/camera/${eventId}`;
+              console.log('Redirecting to:', targetUrl);
+              router.push(targetUrl);
             }
           }}>
             <input
@@ -158,7 +144,7 @@ function HomeContent() {
                 cursor: 'pointer'
               }}
             >
-              Start Photobooth
+              Start Photo Booth
             </button>
           </form>
         </div>
@@ -184,13 +170,6 @@ function HomeContent() {
         )}
 
         <div className={styles.buttonContainer}>
-          <button
-            onClick={() => router.push('/camera')}
-            className={styles.startButton}
-          >
-            Start Photo Booth
-          </button>
-          
           <Link href="/subscription" className={styles.subscribeButton}>
             Subscribe Now
           </Link>

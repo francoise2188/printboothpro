@@ -181,7 +181,7 @@ export default function EventsPage() {
     setClientPhone(event.client_phone || '');
     
     // Initialize empty overlays object
-    event.existingOverlays = { url: null, frame_overlay: null };
+    event.existingOverlays = { landing_background: null, frame_overlay: null };
     
     // Fetch existing overlays
     try {
@@ -193,7 +193,7 @@ export default function EventsPage() {
       // Check if we have any design data
       if (designData && designData.length > 0) {
         event.existingOverlays = {
-          url: designData[0].url,
+          landing_background: designData[0].landing_background,
           frame_overlay: designData[0].frame_overlay
         };
         console.log('Found existing overlays:', event.existingOverlays);
@@ -285,15 +285,7 @@ export default function EventsPage() {
 
       let eventId;
       
-      if (editingEvent) {
-        const { error: updateError } = await supabase
-          .from('events')
-          .update(eventData)
-          .eq('id', editingEvent.id);
-          
-        if (updateError) throw updateError;
-        eventId = editingEvent.id;
-      } else {
+      if (!editingEvent) {
         const { data: newEvent, error: insertError } = await supabase
           .from('events')
           .insert({ ...eventData })
@@ -302,6 +294,29 @@ export default function EventsPage() {
           
         if (insertError) throw insertError;
         eventId = newEvent.id;
+
+        // Create default design settings for new event
+        const { error: designError } = await supabase
+          .from('design_settings')
+          .insert({
+            event_id: eventId,
+            landing_background: null,
+            frame_overlay: null,
+            updated_at: new Date().toISOString()
+          });
+          
+        if (designError) {
+          console.error('Error creating default design settings:', designError);
+          // Continue even if design settings creation fails
+        }
+      } else {
+        const { error: updateError } = await supabase
+          .from('events')
+          .update(eventData)
+          .eq('id', editingEvent.id);
+          
+        if (updateError) throw updateError;
+        eventId = editingEvent.id;
       }
 
       // Process overlays
@@ -321,9 +336,12 @@ export default function EventsPage() {
           
           const designData = {
             event_id: eventId,
-            url: hasNewLandingPage ? await processFile(landingPageImage) : (existingDesign?.[0]?.url || null),
-            frame_overlay: hasNewOverlay ? await processFile(cameraOverlay) : (existingDesign?.[0]?.frame_overlay || null)
+            landing_background: hasNewLandingPage ? await processFile(landingPageImage) : (existingDesign?.[0]?.landing_background || null),
+            frame_overlay: hasNewOverlay ? await processFile(cameraOverlay) : (existingDesign?.[0]?.frame_overlay || null),
+            updated_at: new Date().toISOString()
           };
+
+          console.log('Design data being saved:', designData);
 
           if (existingDesign && existingDesign.length > 0) {
             console.log('Updating existing design settings...');
@@ -939,7 +957,7 @@ export default function EventsPage() {
                 <label className={styles.label}>
                   Landing Page Image 
                   <span className="text-sm text-gray-500 ml-2">
-                    {editingEvent?.existingOverlays?.url ? '(Has existing image)' : ''}
+                    {editingEvent?.existingOverlays?.landing_background ? '(Has existing image)' : ''}
                   </span>
                 </label>
                 <input
