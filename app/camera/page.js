@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function CameraRedirectPage() {
+function CameraRedirectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const eventId = searchParams.get('event');
@@ -21,10 +21,22 @@ export default function CameraRedirectPage() {
   }, [eventId, router]);
 
   return (
+    <div className="text-center text-white">
+      <h2 className="text-xl font-semibold">Redirecting...</h2>
+    </div>
+  );
+}
+
+export default function CameraRedirectPage() {
+  return (
     <div className="min-h-screen flex items-center justify-center bg-black">
-      <div className="text-center text-white">
-        <h2 className="text-xl font-semibold">Redirecting...</h2>
-      </div>
+      <Suspense fallback={
+        <div className="text-center text-white">
+          <h2 className="text-xl font-semibold">Loading...</h2>
+        </div>
+      }>
+        <CameraRedirectContent />
+      </Suspense>
     </div>
   );
 }
