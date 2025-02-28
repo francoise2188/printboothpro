@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import Image from 'next/image';
 
 export default function EventPage() {
   const [email, setEmail] = useState('');
@@ -34,52 +35,39 @@ export default function EventPage() {
         setIsLoading(true);
         
         // Fetch event data with error logging
-        const { data, error } = await supabase
+        const { data: eventData, error: eventError } = await supabase
           .from('events')
-          .select('is_active')
+          .select('*, design_settings(*)')
           .eq('id', eventId)
           .single();
         
-        console.log('Event data:', data);
+        console.log('Event data:', eventData);
 
         if (!isMounted) return;
 
-        if (error) {
-          console.error('Supabase error fetching event:', error.message);
-          throw error;
+        if (eventError) {
+          console.error('Supabase error fetching event:', eventError.message);
+          throw eventError;
         }
 
-        if (!data) {
+        if (!eventData) {
           console.error('No event found for ID:', eventId);
           throw new Error('Event not found');
         }
 
         // If event is not active, redirect to ended page
-        if (!data.is_active) {
+        if (!eventData.is_active) {
           console.log('Event is not active, redirecting...');
           router.push('/event-ended');
           return;
         }
 
-        // Fetch event design settings
-        const { data: designData, error: designError } = await supabase
-          .from('design_settings')
-          .select('landing_background')
-          .eq('event_id', eventId)
-          .maybeSingle();
-
-        if (!isMounted) return;
-
-        if (designError) {
-          console.error('Error fetching design settings:', designError.message);
-          // Don't throw error for missing design settings
-          if (!designError.message.includes('No rows returned')) {
-            throw designError;
-          }
-        }
-        
-        if (designData?.landing_background) {
-          setBackgroundUrl(designData.landing_background);
+        // Set background URL from design settings
+        if (eventData.design_settings?.[0]?.landing_background) {
+          console.log('Setting background URL:', eventData.design_settings[0].landing_background);
+          setBackgroundUrl(eventData.design_settings[0].landing_background);
+        } else {
+          console.log('No landing background found in design settings');
         }
       } catch (err) {
         if (!isMounted) return;
@@ -140,31 +128,36 @@ export default function EventPage() {
       alignItems: 'center'
     }}>
       {backgroundUrl && (
-        <img
-          src={backgroundUrl}
-          alt="Event Background"
-          onError={(e) => {
-            console.error('Error loading background image:', e);
-            console.log('Attempted URL:', backgroundUrl);
-            setError('Unable to load background image');
-          }}
-          onLoad={() => {
-            console.log('Background image loaded successfully');
-          }}
-          style={{
-            position: 'absolute',
-            height: '102vh',
-            width: 'auto',
-            maxWidth: 'none',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            margin: 0,
-            padding: 0,
-            objectFit: 'contain',
-            objectPosition: 'center'
-          }}
-        />
+        <div style={{
+          position: 'absolute',
+          height: '102vh',
+          width: '100vw',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          margin: 0,
+          padding: 0,
+        }}>
+          <Image
+            src={backgroundUrl}
+            alt="Event Background"
+            fill
+            style={{
+              objectFit: 'contain',
+              objectPosition: 'center'
+            }}
+            onError={(e) => {
+              console.error('Error loading background image:', e);
+              console.log('Attempted URL:', backgroundUrl);
+              setError('Unable to load background image');
+            }}
+            onLoad={() => {
+              console.log('Background image loaded successfully');
+            }}
+            priority
+            unoptimized
+          />
+        </div>
       )}
 
       <div style={{
@@ -183,7 +176,9 @@ export default function EventPage() {
           e.preventDefault();
           if (email) {
             localStorage.setItem('userEmail', email);
-            router.push(`/camera?event=${eventId}`);
+            const targetUrl = `/camera?event=${eventId}`;
+            console.log('Redirecting to:', targetUrl);
+            router.push(targetUrl);
           }
         }}>
           <input
