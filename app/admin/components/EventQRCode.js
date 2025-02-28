@@ -35,7 +35,7 @@ export default function EventQRCode({ eventId, eventName }) {
       console.log('Using environment variable for base URL:', baseUrl);
     }
     
-    // Create the event URL without any encoding
+    // Create the event URL using the new /event/[id] route
     const newEventUrl = `${baseUrl}/event/${eventId}`;
     console.log('Generated Event URL:', newEventUrl);
     setEventUrl(newEventUrl);
